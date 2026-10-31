@@ -19,6 +19,7 @@ Alertmanager ──▶ trigger alerts ──▶ incident + task of triage ──
 | budgets | `triage` 48 model / 48 tool calls, 900 s; a child gets a quarter of that (12 / 12) |
 | model | `anthropic/claude-haiku-5.5`, `cost-optimized`, through OpenRouter |
 | placement | the node `gx10-ff95`; set `NODE` for another |
+| approvals | `autoApprove` for `rollout status` and `rollout history` (AXLR asks a decision for them although the rules allow them); a held call waits `2m`, then is denied |
 
 ## The kubectl rules
 
