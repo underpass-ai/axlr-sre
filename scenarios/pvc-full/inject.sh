@@ -2,7 +2,9 @@
 # uploads writes with dd until its 64 MiB volume is full. The volume is a
 # local PersistentVolume on a 64 MiB tmpfs inside the kind node, so the
 # filesystem really fills (kind's local-path volumes would fill the host disk
-# and report no volume metrics).
+# and report no volume metrics). tmpfs pages count against the memory of the
+# container that writes them: its limit must hold the 64 MiB, or the kernel
+# kills the container before the volume is full.
 . "$(dirname "$0")/../lib.sh"
 node="$fault_node"
 docker exec "$node" sh -c 'mkdir -p /mnt/lab-uploads && (mountpoint -q /mnt/lab-uploads || mount -t tmpfs -o size=64m tmpfs /mnt/lab-uploads)'
@@ -51,7 +53,7 @@ spec:
           image: docker.io/library/busybox:1.37
           command: ["sh", "-c", "echo uploads: writing; dd if=/dev/zero of=/data/uploads.bin bs=1M count=200; echo uploads: write failed; df -h /data; sleep 36000"]
           volumeMounts: [{name: data, mountPath: /data}]
-          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 256Mi}}
       volumes:
         - name: data
           persistentVolumeClaim: {claimName: uploads-data}
