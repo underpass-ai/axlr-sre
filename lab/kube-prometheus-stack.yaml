@@ -1,5 +1,5 @@
-# kube-prometheus-stack for the lab. up.sh replaces @CP_URL@ and @SECRET@
-# into a copy outside the repo; this file never holds the secret.
+# kube-prometheus-stack for the lab. up.sh replaces @CP_URL@ into a copy;
+# the trigger's secret reaches Alertmanager as a mounted file, never here.
 fullnameOverride: kps
 
 # Only the lab's rules (rules.yaml) alert: no Watchdog, no default rules,
@@ -21,8 +21,18 @@ kubeScheduler:
 kubeProxy:
   enabled: false
 
+prometheusOperator:
+  nodeSelector: {lab/role: monitoring}
+  admissionWebhooks:
+    patch:
+      nodeSelector: {lab/role: monitoring}
+
+kube-state-metrics:
+  nodeSelector: {lab/role: monitoring}
+
 prometheus:
   prometheusSpec:
+    nodeSelector: {lab/role: monitoring}
     scrapeInterval: 15s
     evaluationInterval: 15s
     retention: 12h
@@ -35,8 +45,10 @@ prometheus:
 
 alertmanager:
   alertmanagerSpec:
-    # the fleet CA, mounted at /etc/alertmanager/secrets/axlr-ca/ca.crt
-    secrets: [axlr-ca]
+    nodeSelector: {lab/role: monitoring}
+    # the fleet CA at /etc/alertmanager/secrets/axlr-ca/ca.crt and the
+    # trigger's secret at /etc/alertmanager/secrets/axlr-trigger/secret
+    secrets: [axlr-ca, axlr-trigger]
   config:
     global:
       resolve_timeout: 5m
@@ -58,8 +70,10 @@ alertmanager:
             http_config:
               tls_config:
                 ca_file: /etc/alertmanager/secrets/axlr-ca/ca.crt
-              # Alertmanager 0.27 or later
+              # Alertmanager 0.27 or later. Not `secrets: [...]`: the
+              # operator re-renders the config and writes "<secret>" in its
+              # place, so the control plane answers 403.
               http_headers:
                 X-Axlr-Secret:
-                  secrets: ["@SECRET@"]
+                  files: [/etc/alertmanager/secrets/axlr-trigger/secret]
     templates: []

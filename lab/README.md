@@ -19,7 +19,7 @@ kind sre-lab                                              host
 
 | Piece | What it is |
 |---|---|
-| [kind.yaml](kind.yaml) | one node, `sre-lab-control-plane`, for the stack and the faults; workers need a higher `fs.inotify.max_user_instances` on the host (the file says how) |
+| [kind.yaml](kind.yaml) | one control plane, two workers: the monitoring stack on `sre-lab-worker`, node and volume faults on `sre-lab-worker2`. Workers need `fs.inotify.max_user_instances` above 128 on the host (the file says how) |
 | [kube-prometheus-stack.yaml](kube-prometheus-stack.yaml) | the chart's values: no default rules, no Grafana, the receiver `axlr-bots` |
 | [rules.yaml](rules.yaml) | ten lab alerts, `for: 1m`, label `lab="true"`, built to exclude each other |
 | [up.sh](up.sh), [down.sh](down.sh) | bring the lab up or delete it |

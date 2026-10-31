@@ -1,14 +1,19 @@
-# The lab cluster: one node, the control plane, which also runs the
-# workloads (kind drops its taint when there are no workers).
+# The lab cluster: one control plane and two workers. The monitoring stack
+# runs on the first worker (label lab/role=monitoring); node-notready stops
+# the kubelet of the second, so the alert pipeline survives the fault.
 #
-# Workers need the host's fs.inotify.max_user_instances well above its
-# default of 128: on gx10, beside the drift-lab cluster, a worker's kubelet
-# fails with "inotify_init: too many open files" and never joins. With
+# Workers need the host's fs.inotify.max_user_instances well above the
+# default of 128: on gx10 a worker's kubelet failed with "inotify_init: too
+# many open files" until
 #   sudo sysctl -w fs.inotify.max_user_instances=1024
-# two workers can be added here (role: worker), and node-notready can stop a
-# worker instead of the only node.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: sre-lab
 nodes:
   - role: control-plane
+  - role: worker
+    labels:
+      lab/role: monitoring
+  - role: worker
+    labels:
+      lab/role: workloads

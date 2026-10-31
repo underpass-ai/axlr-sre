@@ -31,7 +31,6 @@ if [ ! -s "$secret_file" ]; then
   umask 077
   openssl rand -hex 24 >"$secret_file"
 fi
-secret="$(cat "$secret_file")"
 
 if ! kind get clusters | grep -qx "$cluster"; then
   kind create cluster --config "$here/kind.yaml"
@@ -57,11 +56,12 @@ helm upgrade --install metrics-server metrics-server/metrics-server \
 
 k create namespace monitoring --dry-run=client -o yaml | k apply -f -
 k -n monitoring create secret generic axlr-ca --from-file=ca.crt="$ca" --dry-run=client -o yaml | k apply -f -
+k -n monitoring create secret generic axlr-trigger --from-file=secret="$secret_file" --dry-run=client -o yaml | k apply -f -
 
 # kube-prometheus-stack first: cert-manager's ServiceMonitor needs its CRDs.
 values="$(mktemp)"
 trap 'rm -f "$values"' EXIT
-sed -e "s|@CP_URL@|$url|" -e "s|@SECRET@|$secret|" "$here/kube-prometheus-stack.yaml" >"$values"
+sed -e "s|@CP_URL@|$url|" "$here/kube-prometheus-stack.yaml" >"$values"
 helm upgrade --install kps prometheus-community/kube-prometheus-stack \
   --kube-context "$ctx" -n monitoring --version 92.17.0 -f "$values" --wait --timeout 10m
 
