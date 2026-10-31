@@ -1,6 +1,6 @@
 # Diseño: AXLR Bots para resolver incidencias en Kubernetes y cloud
 
-**Estado:** diseño, revisión 2, 30 de octubre de 2026. Las diez decisiones de §13 están tomadas. Nada está implementado salvo lo marcado como «ya existe»; la fase 0 está detallada en §12.1.
+**Estado:** diseño, revisión 2.1, 31 de octubre de 2026. Las diez decisiones de §13 están tomadas. Nada está implementado salvo lo marcado como «ya existe»; la fase 0 está detallada en §12.1.
 **Nombre:** *AXLR Bots SRE* (Q1). **Repo:** `axlr-sre`, producto propio sobre [AXLR Bots](https://github.com/underpass-ai/axlr-bots) (Q10). Los enlaces a runbooks, ADRs y ejemplos apuntan al repo axlr-bots.
 
 ---
@@ -95,7 +95,7 @@ Hoy el control plane tiene Bot, Task, Execution, Node y Group. Ninguno represent
 
 | Campo | Contenido |
 |---|---|
-| `id` | `inc-` + hash del `groupKey` de Alertmanager (o de la fuente equivalente) |
+| `id` | acuñado por el control plane (`inc-…`); el `groupKey` es un campo. Dos incidentes pueden compartir `groupKey` (uno resuelto hace tiempo y otro nuevo): la búsqueda devuelve el **más reciente** |
 | `fingerprints` | las alertas del grupo; una nueva alerta en el mismo grupo se añade, no abre otro |
 | `severity` | `sev1`..`sev4`, del label `severity` de la alerta o de `triage` |
 | `status` | el diagrama de abajo |
@@ -135,7 +135,7 @@ Reglas:
 | la delegación no cruza fases | `triage` delega solo a `diag-k8s` y `diag-cloud` (en paralelo); `fix`, `verify` y `scribe` los arranca el control plane, nunca un bot padre que esperaría durante la aprobación |
 | clave | el incidente por `groupKey`; cada alerta dentro por `fingerprint` |
 | `Escalated` | presupuesto del incidente agotado, SLA de diagnóstico pasado o `fix` denegado dos veces: aviso a la persona, el incidente queda abierto a mano |
-| reapertura | un `firing` sobre un incidente `Resolved` hace menos de `reopenWindow` (30 min) lo reabre y enlaza; después abre otro |
+| reapertura | un `firing` sobre un incidente `Resolved` hace menos de 30 min (`IncidentReopenWindow`, constante del dominio en la fase 0) lo reabre con un ciclo más; después abre otro |
 
 ---
 
@@ -383,7 +383,7 @@ Objetivo: que una alerta real de Alertmanager en kind abra **un** incidente, que
 | PR | Repo | Qué entra | Dónde | Sale cuando |
 |---|---|---|---|---|
 | **0** este diseño | axlr-sre | rev 2, README del repo | `docs/design.md` | primer commit |
-| **1** agregado Incidente | axlr-bots | `Incident` con `id`, `groupKey`, `fingerprints`, `severity`, `status` (`Open`, `Diagnosed`, `Resolved`, `Escalated`), `tasks`, `cost`, `reopenWindow`; store de un JSON por incidente; `GET /v1/incidents`, `GET /v1/incidents/{id}`, `POST /v1/incidents` (manual); eventos `incident.opened`, `incident.updated`, `incident.resolved`; CLI `incident list`, `incident get`, `incident open`, `incident resolve`; la tarea de `triage` lleva `incidentId` y al completarse pasa el incidente a `Diagnosed` con el texto de su respuesta | `domain/incident.go`, `application/open_incident.go`, `application/resolve_incident.go`, `adapters/filestore/`, `adapters/httpapi/`, `cmd/axlr-bots/` | tests: abrir dos veces el mismo `groupKey` es un incidente; reabrir dentro de `reopenWindow` enlaza, fuera abre otro; una tarea completada cambia el estado una sola vez |
+| **1** agregado Incidente, **abierto como [axlr-bots#78](https://github.com/underpass-ai/axlr-bots/pull/78)** | axlr-bots | `Incident` con `id`, `groupKey`, `fingerprints` (los 64 primeros), `severity`, `status` (`Open`, `Diagnosed`, `Resolved`, `Escalated`), `cycle`, `tasks`, `cost`; store de un JSON por incidente; `GET /v1/incidents`, `GET /v1/incidents/{id}`, `POST /v1/incidents` (manual), `POST /v1/incidents/{id}/resolve`; eventos `incident.opened`, `incident.repeated`, `incident.reopened`, `incident.diagnosed`, `incident.escalated`, `incident.resolved`; CLI `incident open`, `incident list`, `incident get`, `incident resolve`; trigger `incident` que el bot declara; la tarea de `triage` lleva `incidentId` y, acabe donde acabe, mueve el incidente: completada → `Diagnosed`, cualquier otro fin → `Escalated` | `domain/incident.go`, `application/open_incident.go`, `application/incident_advancer.go`, `adapters/filestore/`, `adapters/unixapi/`, `cmd/axlr-bots/` | tests: abrir dos veces el mismo `groupKey` es un incidente; reabrir dentro de `reopenWindow` enlaza, fuera abre otro; una tarea completada cambia el estado una sola vez |
 | **2** trigger `alertmanager` | axlr-bots | un tipo de trigger nuevo sobre el webhook de hoy: mismo `secret`/`signingKey`, cuerpo del webhook v4 de Alertmanager; `firing` nuevo → incidente + tarea de `triage` con la alerta como `input`; `firing` repetido → `incident.repeat`, sin tarea; alerta nueva en el grupo → se añade, nota si ya está `Diagnosed`; `resolved` por alerta → se marca; grupo resuelto → `Resolved`, sin tarea; cuerpo que no es de Alertmanager → `400` | `domain/trigger.go`, `application/fire_alertmanager.go`, `adapters/httpapi/triggers.go`, `docs/runbooks/triggers.md` | tests con los tres cuerpos reales (firing, repeat, resolved) grabados del lab; 30 reenvíos = 1 incidente |
 | **3** laboratorio | axlr-sre | `lab/up.sh` (kind + kube-prometheus-stack con el receiver al control plane, `repeat_interval: 2m`, `send_resolved: true`); `scenarios/<nombre>/{inject.sh,clear.sh,expected.md}` para los 10 de §11; `bots/triage.json`, `bots/diag-k8s.json` (equipo `sre`, `observe`, `local_exec kubectl` con reglas de solo lectura, delegación `triage` → `diag-k8s`); `README.md` con la corrida | `lab/`, `scenarios/`, `bots/` | los 10 escenarios disparan su alerta y abren un incidente cada uno en el kind de gx10 |
 | **4** juez y corrida | axlr-sre | `judge/run.sh`: por escenario, inyecta, espera `Diagnosed`, pide a Jev (la `judge_policy` `axlr-v2` de AXLR) que compare la respuesta con `expected.md`, limpia; imprime la tabla de §11 (causa, tiempo, coste, duplicados); el README guarda la corrida real | `judge/`, `README.md` | **≥ 8/10 causas correctas, 0 duplicados en 1 h de reenvíos**, coste total de la corrida apuntado |
