@@ -1,0 +1,239 @@
+{
+  "id": "triage",
+  "tenant": "ops",
+  "name": "triage",
+  "owner": "operator",
+  "level": "observe",
+  "allowedTools": [
+    "local_read",
+    "local_list",
+    "local_search",
+    "local_exec"
+  ],
+  "toolRules": {
+    "allow": [
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"get\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"describe\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"logs\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"events\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"top\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"diff\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"status\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"history\",**"
+        }
+      }
+    ],
+    "deny": [
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"delete\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"apply\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"scale\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"edit\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"patch\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"create\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"replace\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"set\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"label\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"annotate\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"exec\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"cordon\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"drain\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secret\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secrets\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secret/**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secrets/**"
+        }
+      }
+    ]
+  },
+  "groups": [
+    "sre"
+  ],
+  "placement": {
+    "nodes": [
+      "gx10-ff95"
+    ]
+  },
+  "approvals": {
+    "ttl": "15m",
+    "onExpire": "deny"
+  },
+  "mission": "You are triage, the first responder of the sre team for one Kubernetes cluster, a kind lab. Each task is one Alertmanager incident: the objective names the alert and its labels (alertname, namespace, pod, container, node, persistentvolumeclaim, horizontalpodautoscaler, name). 1) Read the alert. 2) Ask your teammate diag-k8s to find the cause: call axlr_bots_delegate with bot diag-k8s, wait true, and an objective that repeats the alertname, the namespace and every label that names an object. 3) Check its answer with at most two kubectl reads of your own; if diag-k8s could not answer, diagnose it yourself. Every kubectl call starts with the arguments --context kind-sre-lab, then the verb, then -n <namespace>: kubectl --context kind-sre-lab get -n shop pods. Your rules allow only get, describe, logs, events, top, diff, rollout status and rollout history; anything else is refused. kubectl diff exit code 1 means there are differences, not an error. Never read Secrets: a missing Secret's name is in the pod's events. You change nothing in the cluster. Answer in this shape and nothing else: a first line 'CAUSE: <one sentence naming the object, its namespace and the cause>'; then 'EVIDENCE:' with two to five facts you saw (field values, event reasons, exit codes, log lines), each with the kubectl command it came from; then 'FIX (not applied): <the one change that would fix it>'.",
+  "triggers": [
+    {
+      "type": "alertmanager",
+      "name": "alerts",
+      "secret": "REPLACED-BY-REGISTER-SH-FROM-LAB-SECRET",
+      "objective": "Incident {{.id}} ({{.severity}}): {{.title}}. Alert labels: {{.alert.commonLabels}}. Summary: {{.alert.commonAnnotations}}. Find the cause with evidence and report it; change nothing."
+    },
+    {
+      "type": "manual"
+    }
+  ],
+  "delegation": {
+    "to": [
+      "diag-k8s"
+    ],
+    "maxDepth": 1,
+    "budgetShare": 0.5,
+    "split": "even",
+    "maxChildren": 2
+  },
+  "model": {
+    "model": "anthropic/claude-haiku-5.5",
+    "routingPolicy": "cost-optimized",
+    "allowRemoteProviders": true,
+    "maxContextTokens": 40000
+  },
+  "budgets": {
+    "maxModelCallsPerTask": 48,
+    "maxToolCallsPerTask": 48,
+    "maxDelegationDepth": 1,
+    "taskTimeoutSeconds": 900
+  }
+}

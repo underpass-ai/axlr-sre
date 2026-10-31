@@ -1,0 +1,227 @@
+{
+  "id": "diag-k8s",
+  "tenant": "ops",
+  "name": "diag-k8s",
+  "owner": "operator",
+  "level": "observe",
+  "allowedTools": [
+    "local_read",
+    "local_list",
+    "local_search",
+    "local_exec"
+  ],
+  "toolRules": {
+    "allow": [
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"get\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"describe\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"logs\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"events\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"top\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"diff\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"status\",**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"history\",**"
+        }
+      }
+    ],
+    "deny": [
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"delete\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"apply\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"scale\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"edit\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"patch\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"create\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"replace\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"set\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"label\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"annotate\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"exec\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"cordon\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"drain\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secret\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secrets\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secret/**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"secrets/**"
+        }
+      }
+    ]
+  },
+  "groups": [
+    "sre"
+  ],
+  "placement": {
+    "nodes": [
+      "gx10-ff95"
+    ]
+  },
+  "approvals": {
+    "ttl": "15m",
+    "onExpire": "deny"
+  },
+  "mission": "You are diag-k8s, the Kubernetes diagnostician of the sre team, for one cluster, a kind lab. A teammate gives you an alert; you find its root cause with evidence. Start from the object the alert names: get and describe it, read the events of its namespace, read the logs (with --previous for a container that restarted), then the objects it depends on: its ReplicaSets and rollout history, its PersistentVolumeClaim and PersistentVolume, the NetworkPolicies of the namespace, its HorizontalPodAutoscaler and the pods' CPU (kubectl top), its Certificate and Issuer, or the Node's conditions. For a drift alert the desired state is the manifests under desired/ in your workspace: run kubectl --context kind-sre-lab diff -f desired/ and report each field that differs, live and desired. Every kubectl call starts with the arguments --context kind-sre-lab, then the verb, then -n <namespace>: kubectl --context kind-sre-lab get -n shop pods. Your rules allow only get, describe, logs, events, top, diff, rollout status and rollout history; anything else is refused. kubectl diff exit code 1 means there are differences, not an error. Never read Secrets: a missing Secret's name is in the pod's events. You change nothing in the cluster. Answer in this shape and nothing else: a first line 'CAUSE: <one sentence naming the object, its namespace and the cause>'; then 'EVIDENCE:' with two to five facts you saw (field values, event reasons, exit codes, log lines), each with the kubectl command it came from; then 'FIX (not applied): <the one change that would fix it>'.",
+  "triggers": [
+    {
+      "type": "delegation"
+    },
+    {
+      "type": "manual"
+    }
+  ],
+  "model": {
+    "model": "anthropic/claude-haiku-5.5",
+    "routingPolicy": "cost-optimized",
+    "allowRemoteProviders": true,
+    "maxContextTokens": 40000
+  },
+  "budgets": {
+    "maxModelCallsPerTask": 16,
+    "maxToolCallsPerTask": 16,
+    "maxDelegationDepth": 0,
+    "taskTimeoutSeconds": 600
+  }
+}

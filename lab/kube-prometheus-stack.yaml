@@ -1,0 +1,65 @@
+# kube-prometheus-stack for the lab. up.sh replaces @CP_URL@ and @SECRET@
+# into a copy outside the repo; this file never holds the secret.
+fullnameOverride: kps
+
+# Only the lab's rules (rules.yaml) alert: no Watchdog, no default rules,
+# so every incident comes from a scenario.
+defaultRules:
+  create: false
+
+grafana:
+  enabled: false
+nodeExporter:
+  enabled: false
+# kind binds these to the node's loopback: their targets would be down.
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    retention: 12h
+    # pick up the lab's PrometheusRule and cert-manager's ServiceMonitor
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests: {memory: 400Mi}
+
+alertmanager:
+  alertmanagerSpec:
+    # the fleet CA, mounted at /etc/alertmanager/secrets/axlr-ca/ca.crt
+    secrets: [axlr-ca]
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: "null"
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 2m
+      repeat_interval: 2m
+      routes:
+        - receiver: axlr-bots
+          matchers: ['lab="true"']
+    receivers:
+      - name: "null"
+      - name: axlr-bots
+        webhook_configs:
+          - url: "@CP_URL@"
+            send_resolved: true
+            http_config:
+              tls_config:
+                ca_file: /etc/alertmanager/secrets/axlr-ca/ca.crt
+              # Alertmanager 0.27 or later
+              http_headers:
+                X-Axlr-Secret:
+                  secrets: ["@SECRET@"]
+    templates: []

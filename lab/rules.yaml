@@ -1,0 +1,111 @@
+# The lab's alert rules. Every rule waits one minute (for: 1m) so a scenario
+# alerts within two; every alert carries lab="true", the only label routed to
+# axlr-bots. The rules exclude each other where one fault would raise two
+# alerts (an OOM-killed container also crash-loops), so one scenario is one
+# Alertmanager group and one incident.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sre-lab
+  namespace: monitoring
+spec:
+  groups:
+    - name: sre-lab
+      interval: 15s
+      rules:
+        - alert: LabPodCrashLooping
+          expr: |
+            max by (namespace, pod, container) (max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[3m])) == 1
+            unless on (namespace, pod, container)
+            max by (namespace, pod, container) (max_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m])) == 1
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Container {{ $labels.container }} of pod {{ $labels.namespace }}/{{ $labels.pod }} is restarting in CrashLoopBackOff.
+
+        - alert: LabPodOOMKilled
+          expr: |
+            max by (namespace, pod, container) (max_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m])) == 1
+            and on (namespace, pod, container)
+            max by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total[10m])) > 0
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Container {{ $labels.container }} of pod {{ $labels.namespace }}/{{ $labels.pod }} was killed and restarted.
+
+        - alert: LabImagePullBackOff
+          expr: |
+            max by (namespace, pod, container) (max_over_time(kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"}[2m])) == 1
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Container {{ $labels.container }} of pod {{ $labels.namespace }}/{{ $labels.pod }} cannot start.
+
+        - alert: LabContainerConfigError
+          expr: |
+            max by (namespace, pod, container) (max_over_time(kube_pod_container_status_waiting_reason{reason="CreateContainerConfigError"}[2m])) == 1
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Container {{ $labels.container }} of pod {{ $labels.namespace }}/{{ $labels.pod }} cannot be created.
+
+        - alert: LabVolumeFull
+          expr: |
+            max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.95
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Volume {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full.
+
+        - alert: LabNodeNotReady
+          expr: |
+            max by (node) (kube_node_status_condition{condition="Ready", status="true"}) == 0
+          for: 1m
+          labels: {lab: "true", severity: critical}
+          annotations:
+            summary: Node {{ $labels.node }} is not Ready.
+
+        # A running pod that is not ready, and neither waiting nor restarting:
+        # what is left once the rules above have taken theirs. System
+        # namespaces are left out, or a node fault would raise it too.
+        - alert: LabPodNotReady
+          expr: |
+            max by (namespace, pod) (kube_pod_status_ready{condition="false", namespace!~"kube-system|monitoring|cert-manager|local-path-storage"}) == 1
+            and on (namespace, pod) max by (namespace, pod) (kube_pod_status_phase{phase="Running"}) == 1
+            unless on (namespace, pod) max by (namespace, pod) (max_over_time(kube_pod_container_status_waiting[5m])) == 1
+            unless on (namespace, pod) max by (namespace, pod) (increase(kube_pod_container_status_restarts_total[10m])) > 0
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Pod {{ $labels.namespace }}/{{ $labels.pod }} is running but not ready.
+
+        - alert: LabHPAMaxedOut
+          expr: |
+            max by (namespace, horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_current_replicas)
+            >= max by (namespace, horizontalpodautoscaler) (kube_horizontalpodautoscaler_spec_max_replicas)
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} is at its maximum replicas.
+
+        # cert-manager's metric; the lab's threshold is two hours (a real one
+        # would be days).
+        - alert: LabCertificateExpiringSoon
+          expr: |
+            max by (namespace, name) (certmanager_certificate_expiration_timestamp_seconds - time()) < 7200
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }}.
+
+        # Prometheus cannot read the desired manifests: the rule carries the
+        # desired state of examples/k8s-drift (2 replicas of nginx:1.27-alpine).
+        - alert: LabDeploymentDrift
+          expr: |
+            (max by (namespace) (kube_deployment_spec_replicas{namespace="drift-lab", deployment="web"}) != 2)
+            or
+            (count by (namespace) (kube_pod_container_info{namespace="drift-lab", container="web", image!~".*nginx:1.27-alpine"}) > 0)
+          for: 1m
+          labels: {lab: "true", severity: warning}
+          annotations:
+            summary: Deployment drift-lab/web differs from its desired state.
