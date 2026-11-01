@@ -107,7 +107,7 @@ The same cluster, bots and model as on 31 October, driven by `judge/run.sh` (PR 
 | cost of the whole run, diag-k8s children included | $0.071 | < $1 |
 | cost of judging, 58 Jev questions | $0.0020 | |
 
-The judge's rule is stricter than the goal's wording: a diagnosis is *correct* only when every cause fact of `expected.md` is stated, *partly* when some are missing and none contradicted. Under that rule the run does not clear phase 0 (`sre-judge` exits 1); under "names the cause" it does. Which rule phase 0 counts is a decision to take, not a number to tune.
+The judge's rule is stricter than the goal's wording: a diagnosis is *correct* only when every cause fact of `expected.md` is stated, *partly* when some are missing and none contradicted. Under that rule the run does not clear phase 0 (`sre-judge` exits 1); under "names the cause" it does. **Decided on 1 November: the strict rule counts.** Phase 0 is not passed; the bots improve, not the rule (what to improve is in the table below).
 
 | Scenario | Open → Diagnosed | Cost | Facts stated | Fix proposed | Jev | What is missing |
 |---|---|---|---|---|---|---|
