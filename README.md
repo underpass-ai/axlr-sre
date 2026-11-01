@@ -136,7 +136,7 @@ The judge's rule is stricter than the goal's wording: a diagnosis is *correct* o
 | Finding | Effect | What we did |
 |---|---|---|
 | Jev judges a compound fact by its gist | hpa-maxed's `load` row passed while the Deployment `load` was never named | one fact per row in `expected.md`; the question says *every part* |
-| Jev missed a stated fact once in 58 questions (node-notready's taint, p 0.63) | one *partly* that a person would mark *correct* | kept as Jev scored it; the per-fact tables let a person audit it |
+| Jev missed a stated fact once in 58 questions (node-notready's taint, p 0.63); that `side effect` row is still compound (the taint and the pods) | one *partly* that a person would mark *correct* | kept as Jev scored it, the row not split after the fact; the per-fact tables let a person audit it |
 | The diag-k8s bot strips `spec.selector` before `kubectl diff`, so `diff` exits 2 | drift was diagnosed from the `last-applied` annotation, not from the diff | open: the bot's rules for `diff`, or a `kube` tool that diffs properly |
 | `image-pull` sees the other scenarios' alerts while it is held | its result lists five "other alerts" that are the run's own | expected for a soak that runs after the other scenarios; the judge counts duplicates by group key, so they do not count |
 | `incident.costUsd` still omits children | | the judge sums the children's executions itself (`incident_cost.go`) |
