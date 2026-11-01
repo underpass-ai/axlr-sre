@@ -1,5 +1,1 @@
-bin/
-*.log
-.DS_Store
-lab/.kube/
-judge/runs/
+lab/.secret
