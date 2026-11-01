@@ -1,0 +1,95 @@
+{
+  "Scenario": "oom",
+  "Alert": "LabPodOOMKilled",
+  "IncidentID": "inc-51d608bde40fd0fc555dd15b",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:27:41.454869919+01:00",
+  "SettledAt": "2026-11-01T01:30:21.730138072+01:00",
+  "OpenToSettled": 39438527445,
+  "CostUSD": 0.00655611,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Container `cart` in pod `shop/cart-78d555d5-xfpgs` is OOMKilled in a restart loop because its memory limit is 32Mi while its startup command allocates a 60 MiB bytearray.\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-xfpgs`: State and Last State are both `Reason: OOMKilled`, `Exit Code: 137`, with `Restart Count: 4`.\n- `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-xfpgs`: `Limits: memory: 32Mi` and `Requests: memory: 32Mi`. The command is `python -c \"... cache = bytearray(60 * 1024 * 1024) ...\"`, which needs about 60 MiB before Python overhead.\n- `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-xfpgs`: Events show `Warning BackOff ... Back-off restarting failed container cart in pod cart-78d555d5-xfpgs_shop` (x4), alongside repeated `Created` and `Started` events (x5).\n- diag-k8s reported that `kubectl top -n shop pod cart-78d555d5-xfpgs --containers` returned `podmetrics ... not found` and that `logs --previous` returned no lines. I did not re-check these. The cause rests on the describe output.\nFIX (not applied): raise the memory limit and request of container `cart` in the `cart` Deployment in namespace `shop` from 32Mi to at least 128Mi, so the 60 MiB allocation fits.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `cart` (container `cart`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.91,
+          "InputTokens": 814,
+          "Took": 140203055
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 808,
+          "Took": 174519640
+        }
+      },
+      {
+        "Fact": {
+          "Name": "reason",
+          "Value": "`OOMKilled` (exit code 137), restarting"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 819,
+          "Took": 141388575
+        }
+      },
+      {
+        "Fact": {
+          "Name": "limit",
+          "Value": "`limits.memory: 32Mi`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 814,
+          "Took": 145882635
+        }
+      },
+      {
+        "Fact": {
+          "Name": "demand",
+          "Value": "the process loads a 60 MiB cache (log `loading 60 MiB cache`), more than the limit"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.75,
+          "InputTokens": 833,
+          "Took": 142237950
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "raise `limits.memory` above the demand (for example 64Mi–128Mi) or shrink the cache"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.87,
+          "InputTokens": 837,
+          "Took": 133637092
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

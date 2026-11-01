@@ -1,0 +1,107 @@
+{
+  "Scenario": "crashloop",
+  "Alert": "LabPodCrashLooping",
+  "IncidentID": "inc-e51dae576a9c2504b2edf812",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:08:58.715070035+01:00",
+  "SettledAt": "2026-11-01T01:13:59.687009147+01:00",
+  "OpenToSettled": 31118252812,
+  "CostUSD": 0.00589213,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Container `checkout` in pod `shop/checkout-7f6bb97849-2pwwt` crashes with exit 1 on every start because its command requires `/etc/checkout/config.yaml`, and the pod mounts no config volume, so the file is missing.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod checkout-7f6bb97849-2pwwt`: State is Waiting with Reason `CrashLoopBackOff`, Restart Count 5, Last State Terminated with Reason `Error` and Exit Code `1`.\n- Same describe: the container command is `sh -c \"echo checkout v2 starting; echo FATAL: config file /etc/checkout/config.yaml not found \u003e\u00262; exit 1\"`.\n- Same describe: the only volume is `kube-api-access-6htg2` (projected service account token), and the only mount is `/var/run/secrets/kubernetes.io/serviceaccount`. No config volume is mounted.\n- diag-k8s, `kubectl --context kind-sre-lab logs -n shop checkout-7f6bb97849-2pwwt -c checkout --previous`: `checkout v2 starting`, then `FATAL: config file /etc/checkout/config.yaml not found`.\n- Same describe, Events: Warning `BackOff` with \"Back-off restarting failed container checkout\".\n\nFIX (not applied): Mount a ConfigMap or Secret that contains `config.yaml` at `/etc/checkout` in the `checkout` Deployment's pod template, then roll it out.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `checkout` (its pod `checkout-…`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.9,
+          "InputTokens": 758,
+          "Took": 173849631
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.77,
+          "InputTokens": 749,
+          "Took": 172932145
+        }
+      },
+      {
+        "Fact": {
+          "Name": "state",
+          "Value": "`CrashLoopBackOff`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.96,
+          "InputTokens": 755,
+          "Took": 138128984
+        }
+      },
+      {
+        "Fact": {
+          "Name": "exit code",
+          "Value": "`1`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 751,
+          "Took": 175542091
+        }
+      },
+      {
+        "Fact": {
+          "Name": "log line",
+          "Value": "`config file /etc/checkout/config.yaml not found`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 762,
+          "Took": 130937946
+        }
+      },
+      {
+        "Fact": {
+          "Name": "what changed",
+          "Value": "revision 2 (`release v2`) changed the command; revision 1 ran"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.69,
+          "InputTokens": 764,
+          "Took": 139150229
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "roll back to revision 1 (`kubectl rollout undo deploy/checkout`) or ship the config"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.77,
+          "InputTokens": 774,
+          "Took": 135317263
+        }
+      }
+    ]
+  },
+  "Error": ""
+}
