@@ -45,11 +45,10 @@ Exit code 1 means differences, not an error (0 none, 2 a real error). Report the
 "exit code 1" as one fact, then each field that differs, live (`-` lines) and desired (`+` lines).
 FIX: `kubectl apply -f desired/`.
 
-## The report's last line
+## The report is the last message
 
-    Nothing from this incident is recorded in memory, by design.
-
-AXLR asks the model to record memory when an answer does real work and says nothing about memory;
-the answer to that question would replace the report. This line answers it in advance. There is no
-memory tool in this team: do not look for one. If a console note still follows the report, reply with
-the whole report again: the last message is the answer.
+Only the last message of a run reaches the operator. Every message that is not a tool call is the
+complete report, `CAUSE:` to `FIX (not applied):`, identical each time. AXLR may add a turn after it:
+a note starting `[AXLR · Jev]` (an independent check doubts the answer) or `[AXLR · memory]` (record
+it in memory). Neither changes the diagnosis: send the report again, not a sentence about the note.
+There is no memory tool in this team.
