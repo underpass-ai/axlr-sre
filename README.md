@@ -2,7 +2,7 @@
 
 A brigade of bots that resolves Kubernetes and cloud incidents on [AXLR Bots](https://github.com/underpass-ai/axlr-bots): it receives the alert, diagnoses with evidence, proposes the fix as a diff, applies it when a person approves, verifies and writes the postmortem. The model proposes; the policy and the person decide; the panel shows everything.
 
-**Status:** phase 0. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026) and the judged run after it.
+**Status:** phase 0. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)).
 
 ```text
 Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident ──▶ triage ──▶ diag-k8s / diag-cloud ──▶ fix (approval) ──▶ verify ──▶ scribe
@@ -107,7 +107,7 @@ The same cluster, bots and model as on 31 October, driven by `judge/run.sh` (PR 
 | cost of the whole run, diag-k8s children included | $0.071 | < $1 |
 | cost of judging, 58 Jev questions | $0.0020 | |
 
-The judge's rule is stricter than the goal's wording: a diagnosis is *correct* only when every cause fact of `expected.md` is stated, *partly* when some are missing and none contradicted. Under that rule the run does not clear phase 0 (`sre-judge` exits 1); under "names the cause" it does. **Decided on 1 November: the strict rule counts.** Phase 0 is not passed; the bots improve, not the rule (what to improve is in the table below).
+The judge's rule is stricter than the goal's wording: a diagnosis is *correct* only when every cause fact of `expected.md` is stated, *partly* when some are missing and none contradicted. Under that rule the run does not clear phase 0 (`sre-judge` exits 1); under "names the cause" it does. **Decided on 1 November: the strict rule counts.** Phase 0 is not passed; the bots improve, not the rule (what to improve is in the table below). The bots improved the same day and the [run after the fixes](#judged-run-1-november-2026-after-the-bot-fixes) passed.
 
 | Scenario | Open → Diagnosed | Cost | Facts stated | Fix proposed | Jev | What is missing |
 |---|---|---|---|---|---|---|
@@ -140,6 +140,63 @@ The judge's rule is stricter than the goal's wording: a diagnosis is *correct* o
 | The diag-k8s bot strips `spec.selector` before `kubectl diff`, so `diff` exits 2 | drift was diagnosed from the `last-applied` annotation, not from the diff | open: the bot's rules for `diff`, or a `kube` tool that diffs properly |
 | `image-pull` sees the other scenarios' alerts while it is held | its result lists five "other alerts" that are the run's own | expected for a soak that runs after the other scenarios; the judge counts duplicates by group key, so they do not count |
 | `incident.costUsd` still omits children | | the judge sums the children's executions itself (`incident_cost.go`) |
+
+## Judged run, 1 November 2026, after the bot fixes
+
+**Phase 0 passed:** 10 / 10 correct under the strict rule, 0 duplicates, `sre-judge` exit 0. Same cluster, model (`anthropic/claude-haiku-5.5`), judge (`jev-1.13.0`) and `expected.md` as the run above; only `bots/` changed (branch `bots-gaps`). `judge/run.sh`, 10:50–12:07 UTC, `image-pull` held an hour for the resends, `node-notready` last; the cluster ended clean (`shop` empty, three nodes `Ready`). The tables come out of `go run ./cmd/sre-judge report`; the per-fact verdicts are in [judge/results/](judge/results/).
+
+| Measure | Result | Phase 0 goal |
+|---|---|---|
+| scenarios that fired their alert and opened one incident | 10 / 10 | 10 / 10 |
+| causes Jev found stated in full (partly) | 10 / 10 (0) | 8 / 10 |
+| duplicate incidents | 0 | 0 |
+| Open → Diagnosed | 33 s–53 s | < 3m0s |
+| cost of the whole run, children included | $0.093 | < $1 |
+| cost of judging (Jev) | $0.0026 | |
+| passes | true | |
+
+| Scenario | Alert | Trigger answers | Inject → settled | Open → settled | Cost | Resends | Duplicates | Other alerts | Facts stated | Fix proposed | Cause |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| cert-expiry | `LabCertificateExpiringSoon` | opened | 170 s | 46 s | $0.0104 | 0 | 0 | — | 4 / 4 | no | **correct** |
+| crashloop | `LabPodCrashLooping` | opened | 291 s | 39 s | $0.0091 | 0 | 0 | — | 6 / 6 | yes | **correct** |
+| drift | `LabDeploymentDrift` | opened | 161 s | 53 s | $0.0091 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| hpa-maxed | `LabHPAMaxedOut` | opened | 205 s | 47 s | $0.0104 | 0 | 0 | — | 5 / 5 | no | **correct** |
+| image-pull | `LabImagePullBackOff` | opened, repeated ×15 | 145 s | 39 s | $0.0091 | 15 | 0 | LabPodOOMKilled, LabNodeNotReady, LabVolumeFull, LabPodNotReady, LabContainerConfigError | 5 / 5 | yes | **correct** |
+| missing-secret | `LabContainerConfigError` | opened | 146 s | 38 s | $0.0085 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| netpol | `LabPodNotReady` | opened | 176 s | 33 s | $0.0077 | 0 | 0 | — | 4 / 4 | yes | **correct** |
+| node-notready | `LabNodeNotReady` | opened | 200 s | 45 s | $0.0104 | 0 | 0 | — | 4 / 4 | no | **correct** |
+| oom | `LabPodOOMKilled` | opened | 175 s | 45 s | $0.0095 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| pvc-full | `LabVolumeFull` | opened | 170 s | 38 s | $0.0085 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+
+| Scenario | Jev, first 1 November run | Jev, this run |
+|---|---|---|
+| crashloop | partly: *what changed* missing | **correct** |
+| pvc-full | partly: *volume* missing | **correct** |
+| drift | partly: *evidence* missing | **correct** |
+| node-notready | partly (Jev's miss) | **correct**, nothing changed for it |
+| the other six | correct | correct |
+
+### What changed in the bots
+
+| Change | Why |
+|---|---|
+| [bots/runbook.md](bots/runbook.md), copied by `register.sh` into each bot's workspace and read first | a mission is at most 2000 bytes; the runbook says which reads each alert needs and which facts the report carries |
+| crashloop: compare the Deployment's ReplicaSets (revision, change-cause, command, image) | the bot never looked at what changed; the ReplicaSets show revision 2 `release v2` and the command it changed |
+| pvc-full: `describe pv` and `describe storageclass` | the report now names PV `lab-uploads`, StorageClass `lab-local`, `kubernetes.io/no-provisioner` and that it cannot expand |
+| drift: `kubectl diff -f desired/` as it is; `-f -` denied | the bot had stripped `spec.selector` and fed the manifest on stdin (exit 2); now it reports exit 1 and the two fields |
+| `triage` keeps `diag-k8s`'s facts with their commands | `diag-k8s` had named `lab-uploads` on 1 November and `triage`'s summary dropped it |
+| `kubectl rollout` denied, `autoApprove` removed | AXLR asks a decision for `rollout` although the rules allow it; the run then resumes, and the resumed run's extra turns replaced the report |
+| every message that is not a tool call is the whole report | the execution's answer is the last message; AXLR's Jev final check (`[AXLR · Jev]`) and memory reminder (`[AXLR · memory]`) add a turn after the report, and a one-sentence reply to it became the diagnosis |
+
+### What did not fit
+
+| Finding | Effect | What we did |
+|---|---|---|
+| A DNS failure reaching an unrelated MCP server (`learn.microsoft.com`) failed a `triage` task at startup | the incident went `Escalated` with no diagnosis | rerun; a bot should not depend on MCP servers it does not use (axlr-bots / AXLR follow-up) |
+| An `Escalated` incident stays open for its group key | the next crashloop alerts were counted as repeats of it and no incident opened; the judge timed out | resolved it by hand; `Escalated` should not absorb a new firing (axlr-bots follow-up) |
+| crashloop lost its report three times to a console turn (memory reminder, then Jev's final check, the last without any `rollout`) | 2/6, 0/6 and 1/6 facts on the reruns | the mission rule above; the runtime fix is [underpass-ai/AXLR#189](https://github.com/underpass-ai/AXLR/pull/189) |
+| OpenRouter ran out of credit (HTTP 402) during the first full rerun | ten incidents escalated in 4 s, $0; that run is void and not recorded | topped up, run again |
+| A rerun within 30 minutes reopens the last incident of the same alert | the crashloop reruns show `reopened` | the full run started 28 minutes after the last resolve, so every scenario opened its own |
 
 ## License
 

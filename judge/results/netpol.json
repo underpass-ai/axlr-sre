@@ -1,7 +1,7 @@
 {
   "Scenario": "netpol",
   "Alert": "LabPodNotReady",
-  "IncidentID": "inc-b6afdc0f871669d0200f0065",
+  "IncidentID": "inc-b66bd0be31a1ef1e4ade9a25",
   "Cycle": 1,
   "Status": "Diagnosed",
   "Opened": 1,
@@ -9,12 +9,12 @@
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T01:24:54.300156903+01:00",
-  "SettledAt": "2026-11-01T01:27:40.155111306+01:00",
-  "OpenToSettled": 29730919971,
-  "CostUSD": 0.00668504,
+  "InjectedAt": "2026-11-01T12:09:20.830002603+01:00",
+  "SettledAt": "2026-11-01T12:12:16.677225638+01:00",
+  "OpenToSettled": 33098604251,
+  "CostUSD": 0.00771901,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Pod `payments-5bc47dccd9-qblwz` in namespace `shop` is Running but not Ready because its readiness probe (`nslookup kubernetes.default.svc.cluster.local`) times out, since the `deny-all` NetworkPolicy in `shop` denies all egress, DNS included.\nEVIDENCE:\n- `kubectl --context kind-sre-lab get -n shop networkpolicies -o yaml`: `deny-all` has `podSelector: {}`, `policyTypes: [Egress]` and no egress rules, so every pod in `shop` loses egress, including DNS to kube-dns.\n- `kubectl --context kind-sre-lab describe -n shop pod payments-5bc47dccd9-qblwz`: `Ready: False`, `ContainersReady: False`, `Restart Count: 0`, `Status: Running`, readiness `exec [nslookup kubernetes.default.svc.cluster.local] delay=0s timeout=5s period=10s #success=1 #failure=2`.\n- Same describe, events: `Warning Unhealthy (x16 over 2m23s) ... Readiness probe failed: command timed out: \"nslookup kubernetes.default.svc.cluster.local\" timed out after 5s`.\n- diag-k8s reported the same chain from its own describe and networkpolicy reads (task task-fdf2de63c8a1f6d4ceffdc78); I did not re-check its event counts.\nFIX (not applied): Add an egress rule to the `deny-all` NetworkPolicy in `shop` (or a companion policy) allowing UDP and TCP port 53 to kube-dns in `kube-system`, so the readiness probe's DNS lookup can succeed.",
+  "Diagnosis": "CAUSE: Pod `payments-5bc47dccd9-66lgs` in namespace `shop` is Running but not Ready because its readiness probe (`nslookup kubernetes.default.svc.cluster.local`) times out, and the NetworkPolicy `deny-all` in `shop` denies all egress, including DNS.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab describe pod payments-5bc47dccd9-66lgs -n shop`: Ready=False, ContainersReady=False, Restart Count 0, readiness `exec [nslookup kubernetes.default.svc.cluster.local] delay=0s timeout=5s period=10s #success=1 #failure=2`, container `payments` started with `echo payments up; sleep 36000`.\n2. `kubectl --context kind-sre-lab get events -n shop --sort-by=.lastTimestamp`: Warning Unhealthy on pod/payments-5bc47dccd9-66lgs, \"Readiness probe failed: command timed out: \\\"nslookup kubernetes.default.svc.cluster.local\\\" timed out after 5s\", repeated 15 times over 2m18s.\n3. `kubectl --context kind-sre-lab get networkpolicy -n shop -o yaml`: NetworkPolicy `deny-all` has `podSelector: {}`, `policyTypes: [Egress]` and no egress rules, so every pod in `shop` loses egress, including DNS to kube-dns.\n4. `kubectl --context kind-sre-lab logs payments-5bc47dccd9-66lgs -n shop` (reported by diag-k8s): \"payments up\". The container runs; only the probe fails.\n5. `kubectl --context kind-sre-lab get deploy payments -n shop -o yaml` (reported by diag-k8s): only revision 1 exists (ReplicaSet `payments-5bc47dccd9`), `Available=False` with reason MinimumReplicasUnavailable, unavailableReplicas 1. The probe is in the template, so the egress block is the change to look at.\n6. `kubectl --context kind-sre-lab diff -f desired/` (reported by diag-k8s): exit code 2 with `namespaces \"drift-lab\" not found`, so no drift result was obtained.\n\nFIX (not applied): add an egress rule to NetworkPolicy `deny-all` in `shop` that allows UDP and TCP port 53 to the kube-dns pods in `kube-system` (or remove `deny-all`), so the readiness probe's DNS lookup can resolve.",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.88,
-          "InputTokens": 792,
-          "Took": 162165099
+          "Probability": 0.78,
+          "InputTokens": 998,
+          "Took": 183905691
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 787,
-          "Took": 149906926
+          "Probability": 1,
+          "InputTokens": 993,
+          "Took": 132090458
         }
       },
       {
@@ -49,8 +49,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 0.98,
-          "InputTokens": 810,
-          "Took": 124233651
+          "InputTokens": 1016,
+          "Took": 126378802
         }
       },
       {
@@ -60,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.97,
-          "InputTokens": 827,
-          "Took": 138283872
+          "Probability": 0.98,
+          "InputTokens": 1033,
+          "Took": 127864700
         }
       },
       {
@@ -72,9 +72,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.94,
-          "InputTokens": 817,
-          "Took": 148957102
+          "Probability": 0.96,
+          "InputTokens": 1023,
+          "Took": 136364168
         }
       }
     ]

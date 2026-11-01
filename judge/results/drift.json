@@ -1,7 +1,7 @@
 {
   "Scenario": "drift",
   "Alert": "LabDeploymentDrift",
-  "IncidentID": "inc-c27c6894061ad2fafeb699e4",
+  "IncidentID": "inc-9567496928fa113e34b21d8b",
   "Cycle": 1,
   "Status": "Diagnosed",
   "Opened": 1,
@@ -9,12 +9,12 @@
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T01:14:01.27808664+01:00",
-  "SettledAt": "2026-11-01T01:16:42.1684222+01:00",
-  "OpenToSettled": 60670207799,
-  "CostUSD": 0.013353235,
+  "InjectedAt": "2026-11-01T11:58:07.481617263+01:00",
+  "SettledAt": "2026-11-01T12:00:48.412308826+01:00",
+  "OpenToSettled": 52821113436,
+  "CostUSD": 0.009077265000000001,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Deployment `web` in namespace `drift-lab` has drifted from its last-applied manifest, with `spec.replicas` set to 3 and the container image set to `nginx:1.26-alpine` where the last-applied configuration has 2 replicas and `nginx:1.27-alpine`.\nEVIDENCE:\n- `kubectl --context kind-sre-lab get -n drift-lab deployment web -o yaml`: `spec.replicas: 3`, but the `kubectl.kubernetes.io/last-applied-configuration` annotation says `\"replicas\":2`.\n- Same command: the live container image is `docker.io/library/nginx:1.26-alpine`, but the last-applied annotation says `docker.io/library/nginx:1.27-alpine`.\n- Same command: `metadata.generation: 3` and `deployment.kubernetes.io/revision: \"2\"`, so the spec changed after the last apply.\n- Same command: `status.availableReplicas: 3`, `readyReplicas: 3`, and the Available and Progressing conditions are True, so the rollout itself is healthy.\n- `kubectl --context kind-sre-lab diff -n drift-lab -f -` with a stripped manifest exited 2 (`spec.selector: Required value`), so it produced no live-versus-desired diff and the comparison above rests on the last-applied annotation.\nFIX (not applied): Re-apply the source manifest for `drift-lab/web` with `replicas: 2` and image `nginx:1.27-alpine`, which returns the Deployment to its last-applied state.",
+  "Diagnosis": "CAUSE: Deployment `web` in namespace `drift-lab` was changed live to 3 replicas and image `nginx:1.26-alpine` (revision 2, ReplicaSet `web-7688bbc54d`), which no longer matches the desired manifests in `desired/` (2 replicas, `nginx:1.27-alpine`).\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab diff -f desired/` exited with code 1 (differences, not an error). Live `spec.replicas: 3` vs desired `2`; live `image: docker.io/library/nginx:1.26-alpine` vs desired `docker.io/library/nginx:1.27-alpine`; live `metadata.generation: 3` vs desired `4`. (Verified by me with this command.)\n- `kubectl --context kind-sre-lab get -n drift-lab rs -l app=web -o custom-columns=...`: `web-7688bbc54d` is REVISION 2, CHANGE-CAUSE `\u003cnone\u003e`, DESIRED 3, READY 3, image `nginx:1.26-alpine`; `web-6c66b6776c` is REVISION 1, CHANGE-CAUSE `\u003cnone\u003e`, DESIRED 0, image `nginx:1.27-alpine`.\n- `kubectl --context kind-sre-lab get -n drift-lab events --sort-by=.lastTimestamp`: `Scaled down replica set web-6c66b6776c from 1 to 0` and `Scaled up replica set web-7688bbc54d from 0 to 1`, followed by `Pulled` of `nginx:1.26-alpine` for the new pods.\n- `kubectl --context kind-sre-lab get -n drift-lab pods -l app=web -o wide`: 3 pods, all `1/1 Running`, `RESTARTS 0`, on `sre-lab-worker` and `sre-lab-worker2`. No crash, so no logs were read.\n- `kubectl --context kind-sre-lab get -n drift-lab deploy/web -o jsonpath={.metadata.annotations}`: `last-applied-configuration` records `\"replicas\":2` and `nginx:1.27-alpine`, matching `desired/`; the live spec was changed after that apply, and `desired/` was not updated.\n\nFIX (not applied): `kubectl --context kind-sre-lab apply -f desired/` (sets `web` back to 2 replicas and `nginx:1.27-alpine`).",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.9,
-          "InputTokens": 762,
-          "Took": 153133312
+          "Probability": 0.91,
+          "InputTokens": 996,
+          "Took": 170861834
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 764,
-          "Took": 132927856
+          "Probability": 1,
+          "InputTokens": 998,
+          "Took": 165329465
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 776,
-          "Took": 197999636
+          "Probability": 1,
+          "InputTokens": 1010,
+          "Took": 170762427
         }
       },
       {
@@ -60,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 788,
-          "Took": 126702624
+          "Probability": 0.99,
+          "InputTokens": 1022,
+          "Took": 119278932
         }
       },
       {
@@ -71,10 +71,10 @@
           "Value": "`kubectl diff -f desired/` exit 1 (differences, not an error)"
         },
         "Choice": {
-          "Option": "missing",
-          "Probability": 0.81,
-          "InputTokens": 783,
-          "Took": 136011401
+          "Option": "stated",
+          "Probability": 0.97,
+          "InputTokens": 1017,
+          "Took": 147369413
         }
       },
       {
@@ -84,9 +84,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.88,
-          "InputTokens": 774,
-          "Took": 129838296
+          "Probability": 0.83,
+          "InputTokens": 1008,
+          "Took": 200353968
         }
       }
     ]

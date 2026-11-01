@@ -1,7 +1,7 @@
 {
   "Scenario": "image-pull",
   "Alert": "LabImagePullBackOff",
-  "IncidentID": "inc-8623ef8011f8343ddaf20784",
+  "IncidentID": "inc-8dfdc7be57e19b5576c6054d",
   "Cycle": 1,
   "Status": "Diagnosed",
   "Opened": 1,
@@ -15,12 +15,12 @@
     "LabPodNotReady",
     "LabContainerConfigError"
   ],
-  "InjectedAt": "2026-11-01T01:20:25.66245551+01:00",
-  "SettledAt": "2026-11-01T01:22:35.942589541+01:00",
-  "OpenToSettled": 25357735587,
-  "CostUSD": 0.005470195000000001,
+  "InjectedAt": "2026-11-01T12:04:27.170504218+01:00",
+  "SettledAt": "2026-11-01T12:06:52.484341151+01:00",
+  "OpenToSettled": 38694876947,
+  "CostUSD": 0.009075185,
   "Repeats": 15,
-  "Diagnosis": "CAUSE: Pod `catalog-6b8cf764b7-gd99z` in namespace `shop` is stuck in ImagePullBackOff because its container `catalog` references the image tag `docker.io/library/nginx:1.99`, which does not exist in the registry.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod catalog-6b8cf764b7-gd99z` (checked by me): container `catalog` has `Image: docker.io/library/nginx:1.99`, State `Waiting`, Reason `ImagePullBackOff`, `Ready: False`, Restart Count 0.\n- Same describe, Events: `Warning Failed ... Failed to pull image \"docker.io/library/nginx:1.99\": ... docker.io/library/nginx:1.99: not found`, then `Error: ErrImagePull` and `Error: ImagePullBackOff` (x7 over 2m4s).\n- Same describe, Events: `Normal BackOff ... Back-off pulling image \"docker.io/library/nginx:1.99\"`, confirming the kubelet is retrying the same bad tag.\n- diag-k8s reported (`kubectl --context kind-sre-lab get -n shop deployment catalog -o jsonpath={.spec.template.spec.containers[0].image}`): the Deployment template returns `docker.io/library/nginx:1.99`, so the bad tag comes from the Deployment, not from the pod. I did not re-check this read myself.\n\nFIX (not applied): Change the image of the `catalog` container in the `catalog` Deployment in namespace `shop` to an existing tag (for example `docker.io/library/nginx:1.27-alpine`) so the new ReplicaSet can pull and start.",
+  "Diagnosis": "CAUSE: Deployment `catalog` in namespace `shop` points its pod template at image `docker.io/library/nginx:1.99`, a tag that does not exist in the registry, so pod `catalog-6b8cf764b7-xvrnl` stays in ImagePullBackOff and its container `catalog` never starts.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod catalog-6b8cf764b7-xvrnl`: container `catalog` is Waiting with Reason `ImagePullBackOff`, Image `docker.io/library/nginx:1.99`, Restart Count 0, Ready False, Status Pending. (Verified by me.)\n- `kubectl --context kind-sre-lab describe -n shop pod catalog-6b8cf764b7-xvrnl` (Events): `Failed to pull image \"docker.io/library/nginx:1.99\": rpc error: code = NotFound desc = failed to pull and unpack image \"docker.io/library/nginx:1.99\": failed to resolve reference ... docker.io/library/nginx:1.99: not found`, followed by `Error: ErrImagePull` and `Error: ImagePullBackOff`. (Verified by me.)\n- `kubectl --context kind-sre-lab get -n shop events --sort-by=.lastTimestamp` (diag-k8s): the same NotFound error also appears for the earlier pod `catalog-6b8cf764b7-dcbx7` about 59 minutes ago, so this tag has never pulled.\n- `kubectl --context kind-sre-lab get -n shop rs -l app=catalog -o custom-columns=...` (diag-k8s): the only ReplicaSet is `catalog-6b8cf764b7` at REVISION 1, CHANGE-CAUSE `\u003cnone\u003e`, DESIRED 1, IMAGE `docker.io/library/nginx:1.99`. No earlier revision exists, so no previous revision ever ran.\n- `kubectl --context kind-sre-lab describe -n shop deployment catalog` (diag-k8s): pod template image `docker.io/library/nginx:1.99`, Available False (MinimumReplicasUnavailable), OldReplicaSets `\u003cnone\u003e`, revision annotation 1.\n- `kubectl --context kind-sre-lab logs -n shop catalog-6b8cf764b7-xvrnl --all-containers=true` (diag-k8s): exit code 1, `container \"catalog\" ... is waiting to start: trying and failing to pull image`. The container never started, so there are no application logs.\n\nFIX (not applied): change the image of Deployment `catalog` in namespace `shop` from `docker.io/library/nginx:1.99` to an existing tag, for example `docker.io/library/nginx:1.27-alpine` (the tag the `search` deployment already runs on this cluster), then confirm the new pod pulls the image.",
   "Score": {
     "Verdicts": [
       {
@@ -30,9 +30,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.81,
-          "InputTokens": 797,
-          "Took": 159673826
+          "Probability": 0.93,
+          "InputTokens": 1065,
+          "Took": 171598732
         }
       },
       {
@@ -43,8 +43,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 0.99,
-          "InputTokens": 791,
-          "Took": 182103888
+          "InputTokens": 1059,
+          "Took": 132726727
         }
       },
       {
@@ -54,9 +54,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 805,
-          "Took": 144648709
+          "Probability": 0.99,
+          "InputTokens": 1073,
+          "Took": 157510347
         }
       },
       {
@@ -66,9 +66,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.89,
-          "InputTokens": 800,
-          "Took": 138873394
+          "Probability": 0.97,
+          "InputTokens": 1068,
+          "Took": 134687932
         }
       },
       {
@@ -78,9 +78,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.94,
-          "InputTokens": 811,
-          "Took": 131040404
+          "Probability": 0.96,
+          "InputTokens": 1079,
+          "Took": 121698821
         }
       },
       {
@@ -91,8 +91,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 0.95,
-          "InputTokens": 813,
-          "Took": 152737187
+          "InputTokens": 1081,
+          "Took": 148734077
         }
       }
     ]
