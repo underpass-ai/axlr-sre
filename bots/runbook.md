@@ -2,8 +2,8 @@
 
 Read before the first kubectl call. Every call: `kubectl --context kind-sre-lab <verb> -n <namespace> ...`.
 PersistentVolumes, StorageClasses and Nodes are cluster-scoped: no `-n` for them.
-Allowed verbs: get, describe, logs, events, top, diff, rollout status, rollout history.
-`rollout` costs a decision: prefer get/describe. Never read Secrets. Change nothing.
+Allowed verbs: get, describe, logs, events, top, diff. `rollout` is refused: AXLR asks a decision for it,
+and the resumed run's extra turns replace the report. The ReplicaSets show the revisions. Never read Secrets. Change nothing.
 
 ## Any alert
 
@@ -20,8 +20,7 @@ The Deployment keeps one ReplicaSet per revision. Compare them:
 Report: which revision introduced the change (its number and change-cause, e.g. revision 2 "release v2"),
 what it changed (command or image, old and new), and that the previous revision ran (its READY was 1
 before it was scaled down; the old ReplicaSet's template is the one that ran).
-`kubectl rollout history -n <ns> deploy/<name> --revision=<n>` shows the same, at the cost of a decision.
-FIX: roll back to the last revision that ran (`kubectl rollout undo -n <ns> deploy/<name> --to-revision=<n>`)
+FIX (a write, never run here): roll back to the last revision that ran (`kubectl rollout undo -n <ns> deploy/<name> --to-revision=<n>`)
 or ship what the new revision needs.
 
 ## Volume full
@@ -52,4 +51,5 @@ FIX: `kubectl apply -f desired/`.
 
 AXLR asks the model to record memory when an answer does real work and says nothing about memory;
 the answer to that question would replace the report. This line answers it in advance. There is no
-memory tool in this team: do not look for one.
+memory tool in this team: do not look for one. If a console note still follows the report, reply with
+the whole report again: the last message is the answer.
