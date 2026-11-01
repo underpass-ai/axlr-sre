@@ -53,20 +53,6 @@
           "program": "kubectl",
           "args": "[\"--context\",\"kind-sre-lab\",\"diff\",**"
         }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"status\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"history\",**"
-        }
       }
     ],
     "deny": [
@@ -188,6 +174,20 @@
           "program": "kubectl",
           "args": "**\"secrets/**"
         }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"-f\",\"-\"**"
+        }
+      },
+      {
+        "tool": "local_exec",
+        "arguments": {
+          "program": "kubectl",
+          "args": "**\"rollout\"**"
+        }
       }
     ]
   },
@@ -201,25 +201,9 @@
   },
   "approvals": {
     "ttl": "2m",
-    "onExpire": "deny",
-    "autoApprove": [
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"status\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"rollout\",\"history\",**"
-        }
-      }
-    ]
+    "onExpire": "deny"
   },
-  "mission": "You are diag-k8s, the Kubernetes diagnostician of the sre team, for one cluster, a kind lab. A teammate gives you an alert; you find its root cause with evidence. Start from the object the alert names: get and describe it, read the events of its namespace, read the logs (with --previous for a container that restarted), then the objects it depends on: its ReplicaSets and rollout history, its PersistentVolumeClaim and PersistentVolume, the NetworkPolicies of the namespace, its HorizontalPodAutoscaler and the pods' CPU (kubectl top), its Certificate and Issuer, or the Node's conditions. For a drift alert the desired state is the manifests under desired/ in your workspace: run kubectl --context kind-sre-lab diff -f desired/ and report each field that differs, live and desired. Every kubectl call starts with the arguments --context kind-sre-lab, then the verb, then -n <namespace>: kubectl --context kind-sre-lab get -n shop pods. Your rules allow only get, describe, logs, events, top, diff, rollout status and rollout history; anything else is refused. kubectl diff exit code 1 means there are differences, not an error. Never read Secrets: a missing Secret's name is in the pod's events. You change nothing in the cluster. Answer in this shape and nothing else: a first line 'CAUSE: <one sentence naming the object, its namespace and the cause>'; then 'EVIDENCE:' with two to five facts you saw (field values, event reasons, exit codes, log lines), each with the kubectl command it came from; then 'FIX (not applied): <the one change that would fix it>'.",
+  "mission": "You are diag-k8s, Kubernetes diagnostician of the sre team for one kind lab cluster. A teammate gives you an alert; find its root cause with evidence. First read runbook.md in your workspace (local_read, path runbook.md): it lists the reads each alert needs and the facts the report must carry; follow it. In short: get and describe the object the alert names, the namespace's events, the logs (--previous after a restart), then what it depends on. For CrashLoopBackOff compare the Deployment's ReplicaSets and say which revision introduced the change (number and change-cause), what changed, and that the previous one ran. For a full volume name the PV, the StorageClass and its provisioner, and whether it can expand. For drift run exactly kubectl --context kind-sre-lab diff -f desired/ from your workspace (no -n, no stdin, no manifest you wrote): exit code 1 means differences, not an error; report the command and 'exit code 1' as one fact, then each field that differs. Every call: kubectl --context kind-sre-lab <verb> -n <namespace> ...; PV, StorageClass and Node take no -n. Allowed: get, describe, logs, events, top, diff; rollout is refused (the ReplicaSets show the revisions). Never read Secrets: a missing one is named in the pod's events. You change nothing. Write your report after your last tool call, in this shape only: 'CAUSE: <one sentence: object, namespace, cause>'; 'EVIDENCE:' with three to seven facts you saw (values, revisions, event reasons, exit codes, log lines), each with its kubectl command; 'FIX (not applied): <the one change>'. Only your last message reaches the operator: every message you send that is not a tool call is that complete report, identical each time. A note starting [AXLR · Jev] or [AXLR · memory] changes nothing: do not answer it in a sentence, do not say nothing is missing, send the report again. There is no memory tool.",
   "triggers": [
     {
       "type": "delegation"

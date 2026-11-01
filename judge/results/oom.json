@@ -1,7 +1,7 @@
 {
   "Scenario": "oom",
   "Alert": "LabPodOOMKilled",
-  "IncidentID": "inc-51d608bde40fd0fc555dd15b",
+  "IncidentID": "inc-92ff202a7612c28132af8b32",
   "Cycle": 1,
   "Status": "Diagnosed",
   "Opened": 1,
@@ -9,12 +9,12 @@
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T01:27:41.454869919+01:00",
-  "SettledAt": "2026-11-01T01:30:21.730138072+01:00",
-  "OpenToSettled": 39438527445,
-  "CostUSD": 0.00655611,
+  "InjectedAt": "2026-11-01T12:12:17.974649599+01:00",
+  "SettledAt": "2026-11-01T12:15:13.316615366+01:00",
+  "OpenToSettled": 44606010447,
+  "CostUSD": 0.009456835,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Container `cart` in pod `shop/cart-78d555d5-xfpgs` is OOMKilled in a restart loop because its memory limit is 32Mi while its startup command allocates a 60 MiB bytearray.\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-xfpgs`: State and Last State are both `Reason: OOMKilled`, `Exit Code: 137`, with `Restart Count: 4`.\n- `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-xfpgs`: `Limits: memory: 32Mi` and `Requests: memory: 32Mi`. The command is `python -c \"... cache = bytearray(60 * 1024 * 1024) ...\"`, which needs about 60 MiB before Python overhead.\n- `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-xfpgs`: Events show `Warning BackOff ... Back-off restarting failed container cart in pod cart-78d555d5-xfpgs_shop` (x4), alongside repeated `Created` and `Started` events (x5).\n- diag-k8s reported that `kubectl top -n shop pod cart-78d555d5-xfpgs --containers` returned `podmetrics ... not found` and that `logs --previous` returned no lines. I did not re-check these. The cause rests on the describe output.\nFIX (not applied): raise the memory limit and request of container `cart` in the `cart` Deployment in namespace `shop` from 32Mi to at least 128Mi, so the 60 MiB allocation fits.",
+  "Diagnosis": "CAUSE: Deployment `cart` in namespace `shop` (pod `cart-78d555d5-qmwth`, ReplicaSet `cart-78d555d5`, revision 1) has a 32Mi memory limit, but its command allocates a 60 MiB bytearray, so the kernel OOMKills container `cart` on every start.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab get -n shop pod cart-78d555d5-qmwth -o jsonpath=...` (my check): container `cart` limit `32Mi`, last terminated reason `OOMKilled`, exit code `137`, restartCount `4`.\n2. `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-qmwth` (diag-k8s): the command is `python -c \"... cache = bytearray(60 * 1024 * 1024); ... time.sleep(36000)\"`, so the process needs about 60 MiB against a 32Mi limit. Events show `Warning BackOff ... Back-off restarting failed container cart` (x4).\n3. `kubectl --context kind-sre-lab get -n shop rs -l app=cart -o custom-columns=...` (diag-k8s): only one ReplicaSet, `cart-78d555d5`, REVISION 1, CHANGE-CAUSE `\u003cnone\u003e`, MEMLIMIT 32Mi. No earlier revision exists to compare against.\n4. `kubectl --context kind-sre-lab logs -n shop cart-78d555d5-qmwth -c cart --previous` (diag-k8s): fails with \"unable to retrieve container logs for containerd://15a92d84...\", so the startup line \"cart: loading 60 MiB cache\" is not confirmed from logs. The cause rests on the limit and the command.\n5. `kubectl --context kind-sre-lab top pods -n shop` (diag-k8s): exit code 1, \"Metrics not available for pod shop/cart-78d555d5-qmwth, age: 2m27s\", so no live memory usage is available.\n6. `kubectl --context kind-sre-lab diff -f desired/` (diag-k8s): exit code 2, \"namespaces \"drift-lab\" not found\". No drift result was obtained, so the desired manifests were not compared with the live cart limit.\n\nFIX (not applied): raise the `cart` container's memory limit and request in Deployment `shop/cart` from 32Mi to a value above the roughly 60 MiB the command allocates plus interpreter overhead (for example 128Mi), or reduce the allocation in the command.",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.91,
-          "InputTokens": 814,
-          "Took": 140203055
+          "Probability": 0.95,
+          "InputTokens": 1042,
+          "Took": 167087950
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 808,
-          "Took": 174519640
+          "Probability": 0.99,
+          "InputTokens": 1036,
+          "Took": 118227194
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 819,
-          "Took": 141388575
+          "Probability": 0.9,
+          "InputTokens": 1047,
+          "Took": 143952135
         }
       },
       {
@@ -61,8 +61,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 1,
-          "InputTokens": 814,
-          "Took": 145882635
+          "InputTokens": 1042,
+          "Took": 136661234
         }
       },
       {
@@ -72,9 +72,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.75,
-          "InputTokens": 833,
-          "Took": 142237950
+          "Probability": 0.65,
+          "InputTokens": 1061,
+          "Took": 222082426
         }
       },
       {
@@ -84,9 +84,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.87,
-          "InputTokens": 837,
-          "Took": 133637092
+          "Probability": 0.96,
+          "InputTokens": 1065,
+          "Took": 139726359
         }
       }
     ]
