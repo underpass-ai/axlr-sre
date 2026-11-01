@@ -13,6 +13,8 @@ Alertmanager ──▶ trigger alerts ──▶ incident + task of triage ──
 | [triage](triage.json) | `alertmanager` `alerts` (and `manual`) | reads the alert, delegates to `diag-k8s`, checks its answer, reports `CAUSE` / `EVIDENCE` / `FIX (not applied)` |
 | [diag-k8s](diag-k8s.json) | `delegation` (and `manual`) | `get`, `describe`, `events`, `logs`, `top`, `diff`, `rollout status`/`history`; says the cause with evidence |
 
+Both read [runbook.md](runbook.md) from their workspace before the first `kubectl` call (`register.sh` copies it there): the reads each alert needs and the facts the report must carry. It closes the three gaps of the 1 November run (crashloop's *what changed* from the Deployment's ReplicaSets, pvc-full's PV and StorageClass, drift's `kubectl diff -f desired/` as it is), and `triage` keeps `diag-k8s`'s facts instead of summarising them. A mission is at most 2000 bytes, which is why the detail lives in the runbook.
+
 | Setting | Value |
 |---|---|
 | delegation | `triage` → `diag-k8s`, `maxDepth` 1, `split: even`, `maxChildren` 2, `budgetShare` 0.5 |
@@ -27,7 +29,7 @@ Every allowed call starts with `--context kind-sre-lab`, then the verb:
 
 | Allowed | Denied anywhere in the arguments |
 |---|---|
-| `get`, `describe`, `logs`, `events`, `top`, `diff`, `rollout status`, `rollout history` | `delete`, `apply`, `scale`, `edit`, `patch`, `create`, `replace`, `set`, `label`, `annotate`, `exec`, `cordon`, `drain`, `secret`, `secrets` |
+| `get`, `describe`, `logs`, `events`, `top`, `diff`, `rollout status`, `rollout history` | `delete`, `apply`, `scale`, `edit`, `patch`, `create`, `replace`, `set`, `label`, `annotate`, `exec`, `cordon`, `drain`, `secret`, `secrets`, and `-f -` (a manifest on stdin: `diff` reads the `desired/` files as they are) |
 
 The patterns end in `**`: a single `*` stops at `/` (29 Oct). The missions say that `kubectl diff` exit 1 means differences, not an error.
 
@@ -39,7 +41,7 @@ After `lab/up.sh` (it makes `lab/.secret`):
 bots/register.sh
 ```
 
-It puts the secret into the `alertmanager` trigger, registers each bot with `axlr-bots bot register --file` (or `bot update` when it exists) and enables it. By hand:
+It copies `runbook.md` into each bot's workspace (`AXLR_NODE_WORKSPACES`, default `~/.local/state/axlr-node/workspaces`), puts the secret into the `alertmanager` trigger, registers each bot with `axlr-bots bot register --file` (or `bot update` when it exists) and enables it. By hand:
 
 ```bash
 jq --arg s "$(cat lab/.secret)" '(.triggers[] | select(.type=="alertmanager") | .secret) = $s' bots/triage.json > /tmp/triage.json
