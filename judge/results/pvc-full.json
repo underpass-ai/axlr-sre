@@ -1,0 +1,95 @@
+{
+  "Scenario": "pvc-full",
+  "Alert": "LabVolumeFull",
+  "IncidentID": "inc-7d116e1634cb0d501e50453b",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:30:23.155483905+01:00",
+  "SettledAt": "2026-11-01T01:33:43.657179114+01:00",
+  "OpenToSettled": 31933854074,
+  "CostUSD": 0.0067947400000000005,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Deployment `uploads` in namespace `shop` fills its 64Mi PVC `uploads-data` because its container command writes a 200 MiB file (`dd if=/dev/zero of=/data/uploads.bin bs=1M count=200`) into that volume on startup.\nEVIDENCE:\n- `kubectl --context kind-sre-lab logs -n shop deployment/uploads --tail=20`: `dd: error writing '/data/uploads.bin': No space left on device`, then `64+0 records out / 67108864 bytes (64.0MB) copied`, then `uploads: write failed`.\n- `kubectl --context kind-sre-lab logs -n shop deployment/uploads --tail=20`: `df -h /data` shows `tmpfs 64.0M 64.0M 0 100% /data`.\n- `kubectl --context kind-sre-lab describe -n shop pvc/uploads-data`: `Capacity: 64Mi`, `Status: Bound`, `Used By: uploads-8647dc6f95-wpbml`.\n- diag-k8s, `kubectl --context kind-sre-lab describe -n shop deployment/uploads`: the container command is `sh -c \"echo uploads: writing; dd if=/dev/zero of=/data/uploads.bin bs=1M count=200; ...\"`, mounting claim `uploads-data` at `/data`.\nFIX (not applied): Remove the `dd` step from the `uploads` Deployment so it stops writing a 200 MiB dummy file into the 64Mi `uploads-data` claim (or, if real storage is needed, recreate the claim at a size that fits the data).",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "PVC `uploads-data`, mounted at `/data` by Deployment `uploads`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.88,
+          "InputTokens": 777,
+          "Took": 166324042
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 765,
+          "Took": 126170055
+        }
+      },
+      {
+        "Fact": {
+          "Name": "usage",
+          "Value": "100 % (or above 95 %) of `64Mi`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.95,
+          "InputTokens": 780,
+          "Took": 141249525
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the `uploads` container wrote `uploads.bin` with `dd` until `No space left on device`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 784,
+          "Took": 139690184
+        }
+      },
+      {
+        "Fact": {
+          "Name": "volume",
+          "Value": "PV `lab-uploads`, StorageClass `lab-local` (no provisioner: it cannot be expanded)"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.69,
+          "InputTokens": 791,
+          "Took": 174259569
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "free space or move to a larger volume; expansion is not possible with this class"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.72,
+          "InputTokens": 785,
+          "Took": 115470338
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

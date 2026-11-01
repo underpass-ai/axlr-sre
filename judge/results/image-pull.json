@@ -1,0 +1,101 @@
+{
+  "Scenario": "image-pull",
+  "Alert": "LabImagePullBackOff",
+  "IncidentID": "inc-8623ef8011f8343ddaf20784",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 15,
+  "Duplicates": 0,
+  "OtherAlerts": [
+    "LabPodOOMKilled",
+    "LabNodeNotReady",
+    "LabVolumeFull",
+    "LabPodNotReady",
+    "LabContainerConfigError"
+  ],
+  "InjectedAt": "2026-11-01T01:20:25.66245551+01:00",
+  "SettledAt": "2026-11-01T01:22:35.942589541+01:00",
+  "OpenToSettled": 25357735587,
+  "CostUSD": 0.005470195000000001,
+  "Repeats": 15,
+  "Diagnosis": "CAUSE: Pod `catalog-6b8cf764b7-gd99z` in namespace `shop` is stuck in ImagePullBackOff because its container `catalog` references the image tag `docker.io/library/nginx:1.99`, which does not exist in the registry.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod catalog-6b8cf764b7-gd99z` (checked by me): container `catalog` has `Image: docker.io/library/nginx:1.99`, State `Waiting`, Reason `ImagePullBackOff`, `Ready: False`, Restart Count 0.\n- Same describe, Events: `Warning Failed ... Failed to pull image \"docker.io/library/nginx:1.99\": ... docker.io/library/nginx:1.99: not found`, then `Error: ErrImagePull` and `Error: ImagePullBackOff` (x7 over 2m4s).\n- Same describe, Events: `Normal BackOff ... Back-off pulling image \"docker.io/library/nginx:1.99\"`, confirming the kubelet is retrying the same bad tag.\n- diag-k8s reported (`kubectl --context kind-sre-lab get -n shop deployment catalog -o jsonpath={.spec.template.spec.containers[0].image}`): the Deployment template returns `docker.io/library/nginx:1.99`, so the bad tag comes from the Deployment, not from the pod. I did not re-check this read myself.\n\nFIX (not applied): Change the image of the `catalog` container in the `catalog` Deployment in namespace `shop` to an existing tag (for example `docker.io/library/nginx:1.27-alpine`) so the new ReplicaSet can pull and start.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `catalog` (container `catalog`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.81,
+          "InputTokens": 797,
+          "Took": 159673826
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 791,
+          "Took": 182103888
+        }
+      },
+      {
+        "Fact": {
+          "Name": "state",
+          "Value": "`ImagePullBackOff` / `ErrImagePull`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 805,
+          "Took": 144648709
+        }
+      },
+      {
+        "Fact": {
+          "Name": "image",
+          "Value": "`docker.io/library/nginx:1.99`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.89,
+          "InputTokens": 800,
+          "Took": 138873394
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the tag `1.99` does not exist in the registry (`not found`), not a credentials problem"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 811,
+          "Took": 131040404
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "set an existing tag (for example `nginx:1.27-alpine`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.95,
+          "InputTokens": 813,
+          "Took": 152737187
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

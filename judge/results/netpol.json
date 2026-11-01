@@ -1,0 +1,83 @@
+{
+  "Scenario": "netpol",
+  "Alert": "LabPodNotReady",
+  "IncidentID": "inc-b6afdc0f871669d0200f0065",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:24:54.300156903+01:00",
+  "SettledAt": "2026-11-01T01:27:40.155111306+01:00",
+  "OpenToSettled": 29730919971,
+  "CostUSD": 0.00668504,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Pod `payments-5bc47dccd9-qblwz` in namespace `shop` is Running but not Ready because its readiness probe (`nslookup kubernetes.default.svc.cluster.local`) times out, since the `deny-all` NetworkPolicy in `shop` denies all egress, DNS included.\nEVIDENCE:\n- `kubectl --context kind-sre-lab get -n shop networkpolicies -o yaml`: `deny-all` has `podSelector: {}`, `policyTypes: [Egress]` and no egress rules, so every pod in `shop` loses egress, including DNS to kube-dns.\n- `kubectl --context kind-sre-lab describe -n shop pod payments-5bc47dccd9-qblwz`: `Ready: False`, `ContainersReady: False`, `Restart Count: 0`, `Status: Running`, readiness `exec [nslookup kubernetes.default.svc.cluster.local] delay=0s timeout=5s period=10s #success=1 #failure=2`.\n- Same describe, events: `Warning Unhealthy (x16 over 2m23s) ... Readiness probe failed: command timed out: \"nslookup kubernetes.default.svc.cluster.local\" timed out after 5s`.\n- diag-k8s reported the same chain from its own describe and networkpolicy reads (task task-fdf2de63c8a1f6d4ceffdc78); I did not re-check its event counts.\nFIX (not applied): Add an egress rule to the `deny-all` NetworkPolicy in `shop` (or a companion policy) allowing UDP and TCP port 53 to kube-dns in `kube-system`, so the readiness probe's DNS lookup can succeed.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `payments`, running but not ready"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.88,
+          "InputTokens": 792,
+          "Took": 162165099
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 787,
+          "Took": 149906926
+        }
+      },
+      {
+        "Fact": {
+          "Name": "symptom",
+          "Value": "readiness probe `nslookup kubernetes.default.svc.cluster.local` fails (timeout / `can't resolve`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 810,
+          "Took": 124233651
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "NetworkPolicy `deny-all` (`podSelector: {}`, `policyTypes: [Egress]`, no egress rule) blocks DNS, 53/UDP to kube-dns"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.97,
+          "InputTokens": 827,
+          "Took": 138283872
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "allow egress to kube-dns on 53/UDP and 53/TCP, or remove `deny-all`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 817,
+          "Took": 148957102
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

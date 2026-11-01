@@ -1,0 +1,83 @@
+{
+  "Scenario": "node-notready",
+  "Alert": "LabNodeNotReady",
+  "IncidentID": "inc-1bf06ecaeb56bfc3be3acff0",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:34:15.682008044+01:00",
+  "SettledAt": "2026-11-01T01:37:20.982592719+01:00",
+  "OpenToSettled": 39263990751,
+  "CostUSD": 0.008164334999999998,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Node `sre-lab-worker2` (cluster-scoped, context kind-sre-lab) is NotReady because its kubelet stopped posting node status, so the API server cannot reach the kubelet on 172.20.0.5:10250.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab get node sre-lab-worker2 -o jsonpath=...conditions`: Ready, MemoryPressure, DiskPressure and PIDPressure are all `Unknown` with reason `NodeStatusUnknown` and message \"Kubelet stopped posting node status.\"\n2. `kubectl --context kind-sre-lab logs -n kube-system kube-proxy-74ls5 --tail=5`: exit code 1, `dial tcp 172.20.0.5:10250: connect: connection refused`.\n3. diag-k8s `kubectl --context kind-sre-lab describe node sre-lab-worker2`: node carries taints `node.kubernetes.io/unreachable` (NoExecute and NoSchedule); last condition heartbeat 01:30:18.\n4. diag-k8s `kubectl --context kind-sre-lab get events -A --sort-by=.lastTimestamp`: `Normal NodeNotReady node/sre-lab-worker2` (2 occurrences over 110m), then `Warning NodeNotReady` on kube-system kindnet and kube-proxy pods and on the cert-manager pods.\n5. diag-k8s `kubectl --context kind-sre-lab get nodes -o wide`: `sre-lab-worker2 NotReady` at 172.20.0.5, while the control plane and `sre-lab-worker` are Ready.\n\nFIX (not applied): Restart the kubelet on the sre-lab-worker2 node (the kind node container), then check its kubelet journal to find why it stopped posting status.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Node `sre-lab-worker2`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.96,
+          "InputTokens": 836,
+          "Took": 174373775
+        }
+      },
+      {
+        "Fact": {
+          "Name": "condition",
+          "Value": "`Ready` is `Unknown` / `NotReady`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 840,
+          "Took": 141607277
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the kubelet stopped: `Kubelet stopped posting node status` (every condition `Unknown`), not memory, disk or PID pressure"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 856,
+          "Took": 214700471
+        }
+      },
+      {
+        "Fact": {
+          "Name": "side effect",
+          "Value": "taint `node.kubernetes.io/unreachable`; its pods are marked not ready"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.63,
+          "InputTokens": 848,
+          "Took": 161440769
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "restart the kubelet on the host (`systemctl start kubelet`); cordon the node meanwhile"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.89,
+          "InputTokens": 857,
+          "Took": 147013253
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

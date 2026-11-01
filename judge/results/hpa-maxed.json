@@ -1,0 +1,95 @@
+{
+  "Scenario": "hpa-maxed",
+  "Alert": "LabHPAMaxedOut",
+  "IncidentID": "inc-5daf1a454757c02d3b3de198",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:16:53.779623212+01:00",
+  "SettledAt": "2026-11-01T01:20:24.191252318+01:00",
+  "OpenToSettled": 43661573048,
+  "CostUSD": 0.00682968,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: HPA `shop/search` is pinned at its maximum of 3 replicas because the Deployment `shop/load` runs three busy-loop `wget` clients against `http://search`, pushing the search pods' CPU to about 180% of their request.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop hpa search`: Metrics show `cpu on pods (as a percentage of request): 180% (18m) / 50%`, Min replicas 1, Max replicas 3, and the condition `ScalingLimited: True, TooManyReplicas: the desired replica count is more than the maximum replica count`.\n- `kubectl --context kind-sre-lab top -n shop pods` (via diag-k8s): each search pod uses 16–21m CPU against a 10m CPU request, while load pod `load-55fdc5b776-cdjh2` uses 500m.\n- `kubectl --context kind-sre-lab describe -n shop deployment search load` (via diag-k8s): the load container runs `for i in 1 2 3; do (while true; do wget -q -O /dev/null http://search; done) \u0026 done; wait`, with a 500m CPU limit. The search Deployment has 3/3 replicas available with no restarts.\n- `kubectl --context kind-sre-lab logs -n shop load-55fdc5b776-cdjh2 --tail=20` (via diag-k8s): repeated `wget: can't connect to remote host (10.96.19.158): Connection refused`, so the loop keeps firing at the search Service.\n- `kubectl --context kind-sre-lab describe -n shop hpa search` (my own check): event `SuccessfulRescale` at 2m37s, `New size: 3; reason: cpu resource utilization (percentage of request) above target`, after earlier `FailedGetResourceMetric` events while pods were unready.\n\nFIX (not applied): Scale the load generator to zero, `kubectl --context kind-sre-lab scale -n shop deployment load --replicas=0`, so the search pods' CPU drops below the 50% target.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "HPA `search` on Deployment `search`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.86,
+          "InputTokens": 911,
+          "Took": 159972029
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.75,
+          "InputTokens": 904,
+          "Took": 135804612
+        }
+      },
+      {
+        "Fact": {
+          "Name": "state",
+          "Value": "current replicas `3` = `maxReplicas` `3`; `ScalingLimited` / `TooManyReplicas`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.87,
+          "InputTokens": 928,
+          "Took": 139316189
+        }
+      },
+      {
+        "Fact": {
+          "Name": "load",
+          "Value": "CPU above the `50 %` target (request `10m`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.56,
+          "InputTokens": 917,
+          "Took": 148612599
+        }
+      },
+      {
+        "Fact": {
+          "Name": "source",
+          "Value": "the load comes from the Deployment `load`, which calls `search`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.96,
+          "InputTokens": 915,
+          "Took": 126374266
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "raise `maxReplicas` within bounds, or the CPU request; or stop the load if it is not legitimate"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.84,
+          "InputTokens": 931,
+          "Took": 126216363
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

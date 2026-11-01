@@ -2,7 +2,7 @@
 
 A brigade of bots that resolves Kubernetes and cloud incidents on [AXLR Bots](https://github.com/underpass-ai/axlr-bots): it receives the alert, diagnoses with evidence, proposes the fix as a diff, applies it when a person approves, verifies and writes the postmortem. The model proposes; the policy and the person decide; the panel shows everything.
 
-**Status:** phase 0. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026).
+**Status:** phase 0. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026) and the judged run after it.
 
 ```text
 Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident ──▶ triage ──▶ diag-k8s / diag-cloud ──▶ fix (approval) ──▶ verify ──▶ scribe
@@ -92,6 +92,54 @@ Times are seconds from `inject.sh` to the incident leaving `Open` (`Diagnosed`),
 | Prometheus cannot read the desired manifests | the drift rule carries the desired state (2 replicas, `nginx:1.27-alpine`) | the rule says so; the bots still diff against `desired/` |
 | A cycle that ends after its group resolved changes nothing | crashloop's cycle 2 completed with "Unconfirmed: the pod no longer exists"; the incident stayed `Resolved` with cycle 1's diagnosis | open |
 | The objective renders labels as a Go map (`map[alertname:… namespace:shop …]`) | readable; both bots found every object from it | kept |
+
+## Judged run, 1 November 2026
+
+The same cluster, bots and model as on 31 October, driven by `judge/run.sh` (PR 4): every scenario injected, followed until its incident left `Open`, scored by Jev `jev-1.13.0` against its `expected.md`, then cleared; `image-pull` held for an hour of resends; `node-notready` last. The run took 76 minutes (00:06–01:23 UTC). The per-fact tables are in [judge/results/](judge/results/) and come out of `go run ./cmd/sre-judge report`.
+
+| Measure | Result | Phase 0 goal |
+|---|---|---|
+| scenarios that fired their alert and opened one incident | 10 / 10 | 10 / 10 |
+| diagnoses Jev finds stated in full, every expected fact | 6 / 10, and 4 partly | 8 / 10 |
+| diagnoses that name the cause (my judgement, as on 31 October) | 10 / 10 | 8 / 10 |
+| duplicate incidents, after 15 resends of `image-pull` in 60 minutes | 0 | 0 |
+| Open → Diagnosed | 25–61 s | < 3 min |
+| cost of the whole run, diag-k8s children included | $0.071 | < $1 |
+| cost of judging, 58 Jev questions | $0.0020 | |
+
+The judge's rule is stricter than the goal's wording: a diagnosis is *correct* only when every cause fact of `expected.md` is stated, *partly* when some are missing and none contradicted. Under that rule the run does not clear phase 0 (`sre-judge` exits 1); under "names the cause" it does. Which rule phase 0 counts is a decision to take, not a number to tune.
+
+| Scenario | Open → Diagnosed | Cost | Facts stated | Fix proposed | Jev | What is missing |
+|---|---|---|---|---|---|---|
+| crashloop | 31 s | $0.0059 | 5 / 6 | no | partly | *what changed*: revision 2 changed the command; the bot blames the missing config volume, never the rollout |
+| oom | 39 s | $0.0066 | 5 / 5 | yes | correct | |
+| image-pull | 25 s | $0.0055 | 5 / 5 | yes | correct | |
+| missing-secret | 28 s | $0.0057 | 5 / 5 | no | correct | |
+| pvc-full | 32 s | $0.0068 | 4 / 5 | yes | partly | *volume*: PV `lab-uploads`, StorageClass `lab-local`, so no expansion |
+| node-notready | 39 s | $0.0082 | 3 / 4 | no | partly | *side effect*: Jev says the `unreachable` taint is missing (p 0.63); the diagnosis names it and the pods' `NodeNotReady` warnings. Jev's one miss |
+| netpol | 30 s | $0.0067 | 4 / 4 | yes | correct | |
+| hpa-maxed | 44 s | $0.0068 | 5 / 5 | no | correct | this time the bot found the `load` Deployment |
+| cert-expiry | 31 s | $0.0055 | 4 / 4 | yes | correct | |
+| drift | 61 s | $0.0134 | 4 / 5 | yes | partly | *evidence*: `kubectl diff` exit 1; the bot's `diff` exited 2 (it fed a manifest without `spec.selector`) and it compared against `last-applied` instead |
+
+"Fix proposed" is Jev's verdict on the `fix (not applied)` row; it is shown, not counted. Three bots wrote a fix but not the one expected (crashloop: mount the config instead of rolling back; node-notready: restart the kubelet, no cordon).
+
+### Jev against a person
+
+| Diagnoses | Person | Jev |
+|---|---|---|
+| 31 October's ten, scored offline with `sre-judge score` (calibration) | 9 correct, 1 partly | 8 correct, 2 partly: crashloop's *what changed* (p 0.75) and hpa-maxed's *source*, where Jev was right and the person had let it pass |
+| 1 November's ten, live | 10 name the cause | 6 correct, 4 partly: three real gaps and one miss (node-notready) |
+
+### What did not fit
+
+| Finding | Effect | What we did |
+|---|---|---|
+| Jev judges a compound fact by its gist | hpa-maxed's `load` row passed while the Deployment `load` was never named | one fact per row in `expected.md`; the question says *every part* |
+| Jev missed a stated fact once in 58 questions (node-notready's taint, p 0.63) | one *partly* that a person would mark *correct* | kept as Jev scored it; the per-fact tables let a person audit it |
+| The diag-k8s bot strips `spec.selector` before `kubectl diff`, so `diff` exits 2 | drift was diagnosed from the `last-applied` annotation, not from the diff | open: the bot's rules for `diff`, or a `kube` tool that diffs properly |
+| `image-pull` sees the other scenarios' alerts while it is held | its result lists five "other alerts" that are the run's own | expected for a soak that runs after the other scenarios; the judge counts duplicates by group key, so they do not count |
+| `incident.costUsd` still omits children | | the judge sums the children's executions itself (`incident_cost.go`) |
 
 ## License
 
