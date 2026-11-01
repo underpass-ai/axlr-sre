@@ -22,7 +22,7 @@ docs/design.md      the design and its decisions
 lab/                kind + kube-prometheus-stack, the lab's alert rules      (phase 0)
 scenarios/          ten faults: inject.sh, clear.sh, expected.md each        (phase 0)
 bots/               triage, diag-k8s                                         (phase 0)
-judge/              runs the scenarios, judges the diagnoses (planned, phase 0 PR 4)
+judge/              sre-judge: runs the scenarios, Jev judges the diagnoses          (phase 0)
 runbooks/           crashloop, oom, image-pull, … as catalog skills (planned)
 tools/kube/         one MCP tool per kubectl verb (planned)
 deploy/             Helm: two node pods (read-only, write) (planned)
@@ -37,6 +37,7 @@ scenarios/oom/inject.sh                     # wait about two minutes for the ale
 axlr-bots incident list
 axlr-bots incident get <incident-id>        # status, diagnosis, cost
 scenarios/oom/clear.sh                      # the resolved group closes the incident
+judge/run.sh                                # every scenario, judged by Jev; see judge/README.md
 lab/down.sh
 ```
 

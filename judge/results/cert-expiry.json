@@ -1,0 +1,83 @@
+{
+  "Scenario": "cert-expiry",
+  "Alert": "LabCertificateExpiringSoon",
+  "IncidentID": "inc-bab8195ad1c9c5cb37c2ac96",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T01:06:41.842552097+01:00",
+  "SettledAt": "2026-11-01T01:08:57.390354156+01:00",
+  "OpenToSettled": 31235628756,
+  "CostUSD": 0.00545262,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Certificate `shop-tls` in namespace `shop` expires in about an hour because its `spec.duration` is `1h`, so it is a deliberately short-lived lab certificate, not a failed renewal.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab get -n shop certificate shop-tls -o jsonpath=...` (my check): `spec.duration=1h`, `spec.renewBefore=10m`, `status.notAfter=2026-11-01T01:06:42Z`, `status.renewalTime=2026-11-01T00:56:42Z`.\n- diag-k8s, `kubectl --context kind-sre-lab get -n shop certificates -o yaml`: `spec.issuerRef` is `Issuer/lab-selfsigned`, `status.revision: 1`.\n- diag-k8s, `kubectl --context kind-sre-lab describe -n shop certificate shop-tls`: condition `Ready=True`, reason `Ready`, message \"Certificate is up to date and has not expired\".\n- diag-k8s, `kubectl --context kind-sre-lab get -n shop certificaterequests,issuers`: `shop-tls-1` APPROVED=True, READY=True; `lab-selfsigned` READY=True.\n- diag-k8s, `kubectl --context kind-sre-lab get -n shop events`: a Warning `BadConfig` says the certificate \"will be issued with an empty Issuer DN\". This is a separate issue from expiry, and I did not verify it.\n\nFIX (not applied): raise `spec.duration` on `shop/shop-tls` from `1h` to a normal lifetime (for example `2160h`), or, if the 1h lifetime is intentional for the lab, change the `LabCertificateExpiringSoon` threshold so it does not fire on this certificate.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Certificate `shop-tls` (Secret `shop-tls`, DNS `shop.lab.internal`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.7,
+          "InputTokens": 838,
+          "Took": 160764214
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 822,
+          "Took": 122361536
+        }
+      },
+      {
+        "Fact": {
+          "Name": "expiry",
+          "Value": "`notAfter` about one hour after it was issued: expires in under 60 minutes"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 839,
+          "Took": 121201395
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "`duration: 1h` on the Certificate (with `renewBefore: 10m`), issued by Issuer `lab-selfsigned`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.53,
+          "InputTokens": 854,
+          "Took": 119288937
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "set a real duration (for example `2160h`) and renew; or force a renewal now"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.88,
+          "InputTokens": 848,
+          "Took": 178204711
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

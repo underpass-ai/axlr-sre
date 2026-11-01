@@ -1,0 +1,20 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  judge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race -coverprofile=cover.out ./...
+      - name: every package at 80 % or more
+        run: |
+          go test -cover ./judge/... ./cmd/... 2>&1 | tee cover.txt
+          awk '/coverage:/ { gsub("%", "", $(NF-2)); if ($(NF-2)+0 < 80) { print "under 80 %: " $0; bad = 1 } } END { exit bad }' cover.txt
+      - run: bash -n lab/up.sh lab/down.sh bots/register.sh judge/run.sh scenarios/*/*.sh
