@@ -1,0 +1,20 @@
+[package]
+name = "aws-mcp"
+description = "Read-only MCP server over the aws CLI for a cloud diagnosis bot: CloudWatch metrics and alarms, Lambda functions with their aliases, triggers and log groups, and CloudWatch Logs, every call bounded and inside a region allowlist, with doctor and discover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "aws-mcp"
+path = "src/bin/aws_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+jiff.workspace = true
+serde_json.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
