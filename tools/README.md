@@ -20,6 +20,7 @@ bot (AXLR) ──stdio──▶ <tool>-mcp ──▶ the system's API
 | [`aws/`](aws/) | `aws-mcp` | the `aws` CLI, one subprocess per call: CloudWatch metrics and alarms, Lambda functions, aliases, triggers and log groups, CloudWatch Logs; regions from an allowlist | no |
 | [`messaging/`](messaging/) | `messaging-mcp` | the `aws` CLI for SQS and SNS: queues, depth, redrive policy and sources, a look at messages, topics and subscriptions | `MESSAGING_WRITES=true`: send, publish, redrive, cancel, drain with the evidence saved first |
 | [`postgres/`](postgres/) | `postgres-mcp` | one PostgreSQL database through the libpq environment: bounded read-only queries, plans, activity, locks, table and index statistics, pg_stat_statements, settings, replication | `POSTGRES_WRITES=maintenance` (VACUUM, ANALYZE, REINDEX, CREATE INDEX CONCURRENTLY, ALTER) or `all`, previewed |
+| [`redis/`](redis/) | `redis-mcp` | one Redis or Valkey instance through the node's environment: INFO, slow log, clients, latency, memory, config, cluster, keys by SCAN with bounded previews, the biggest keys | `REDIS_WRITES=true`: expire, delete, config set (an allowlist), client kill, previewed; never FLUSH, SHUTDOWN, DEBUG, KEYS |
 
 `kube/` is the one tool per `kubectl` verb of [design §7.1](../docs/design.md); the rest of what is planned, and in which order, is in [docs/tools-port.md](../docs/tools-port.md).
 

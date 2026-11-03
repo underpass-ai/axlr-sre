@@ -12,7 +12,7 @@ tools/
 ├── aws/               CloudWatch, Lambda y Logs por el CLI `aws`; regiones de una allowlist   hecho
 ├── messaging/         SQS y SNS por el CLI `aws`; escrituras con MESSAGING_WRITES y evidencia  hecho
 ├── postgres/          una BD por el entorno libpq; lecturas acotadas y escrituras por nivel   hecho
-└── <los de abajo>/    uno por PR
+└── redis/             una instancia por el entorno; SCAN acotado y escrituras con lista blanca  hecho
 ```
 
 ## Triaje
@@ -35,9 +35,11 @@ tools/
 | 6 | `aws/` (un crate: core, métricas y Lambda) | sesiones, CloudWatch, Lambda (280 + 3 400 + 2 200 + 2 600) | hecho: subproceso `aws` CLI con `--output json` en vez del SDK (el CLI resuelve IRSA, SSO y perfiles igual para todos; sin crates del SDK en CI); sin perfil, cuenta ni región por defecto: `AWS_MCP_REGIONS` es una allowlist y sin ella cada llamada nombra la suya, nunca la del entorno; 9 tools de solo lectura (`metric_query`, `lambda_health`, `alarms`, `lambda_functions`, `lambda_function`, `logs_filter`, `logs_groups`); series compactas, paginación propia con `--max-items`, errores del CLI traducidos, sin variables de entorno de las funciones | fase 2, `diag-cloud` |
 | 7 | `messaging/` (un crate: SNS, SQS y DLQ) | SNS/SQS, DLQ (1 300 + 2 400 + 2 000) | hecho: sobre `aws-mcp` como librería (CLI, regiones, errores); sin alias ni catálogos de colas: cada llamada nombra su cola (URL o nombre) o su topic; 8 lecturas (`queues`, `queue` con histórico, `peek` que rechaza colas con RedrivePolicy, `redrive_status`, `topics`, `topic`) y, con `MESSAGING_WRITES=true`, `send`, `publish`, `redrive` nativo, `redrive_cancel` y `drain`, todas con vista previa y `confirm=true`; `drain` guarda cada lote en un JSON Lines 0600 antes de borrarlo y nunca usa `PurgeQueue`; fuera los tokens de aprobación con frase y las etiquetas de vertical | `fix` en colas |
 | 8 | `postgres/` | túneles SSM y consultas (7 900) | hecho: una BD por servidor, alcanzada con el entorno libpq (`PG*`, `PGPASSFILE`, `PGSSLMODE`) o `DATABASE_URL`, el mismo contrato con el que el bot `dba-postgres` del catálogo ya usa `psql`; fuera los túneles SSM, Secrets Manager y los perfiles por entorno (el nodo llega a la BD); lecturas en transacción READ ONLY con `statement_timeout`, `lock_timeout` y cursor, funciones de servidor rechazadas por nombre; 9 lecturas fijas de DBA; `execute` por nivel (`POSTGRES_WRITES=maintenance` o `all`) y `terminate`, con vista previa; probado contra PostgreSQL 16 en Docker | `diag-cloud`, los bots `dba-*` |
-| 9 | `redis/` | búsqueda y purga de claves (Python, 400) | reescrito en Rust; purga con vista previa | `dba-redis` |
+| 9 | `redis/` | búsqueda y purga de claves (Python, 400) | hecho: reescrito en Rust sobre el crate `redis` con rustls; una instancia por servidor con el entorno (`REDIS_URL` o `REDIS_HOST`, `REDISCLI_AUTH`, `REDIS_TLS`), el mismo contrato que el bot `dba-redis` del catálogo con `redis-cli`; fuera los túneles SSM y los puertos por entorno; 10 lecturas (INFO, slowlog, clients, latency, memory, config_get, cluster, `keys` por SCAN con filtro por valor sobre la vista previa, `key`, `biggest`) y, con `REDIS_WRITES=true`, `expire`, `delete` (lista o patrón, nunca `*` solo, UNLINK), `config_set` con lista blanca de parámetros y `client_kill` (nunca esta conexión ni un enlace de réplica), con vista previa; nunca FLUSH, SHUTDOWN, DEBUG ni KEYS; probado contra Valkey 8 en Docker | `dba-redis` |
 
 Tamaños: 1 y 2, un día; 3, dos o tres; 4 y 5, tres o cuatro cada uno; 6 a 8, dos o tres cada uno; 9, uno.
+
+**Estado (3 de noviembre de 2026): las nueve filas están hechas.** Ocho PRs apiladas, de la #4 a la #11, esperan revisión y merge en orden (`tools-workspace` → `kube-tool` → `grafana-tool` → `opsgenie-tool` → `aws-tool` → `messaging-tool` → `postgres-tool` → `redis-tool`); GitHub cambia la base de cada una cuando se fusiona la anterior. No queda nada por portar de la lista; los `describe` de EKS/EC2/RDS/ELB de `diag-cloud` no están en el origen y serían un tool nuevo.
 
 ## Reglas que cumple cada tool
 

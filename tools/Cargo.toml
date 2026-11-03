@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mcp", "argo-workflows", "kube", "grafana", "opsgenie", "aws", "messaging", "postgres"]
+members = ["mcp", "argo-workflows", "kube", "grafana", "opsgenie", "aws", "messaging", "postgres", "redis"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,6 +20,7 @@ serde_yaml_ng = "0.10"
 tempfile = "3"
 tokio-postgres = "0.7"
 tokio-postgres-rustls = "0.13"
+redis = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "tls-rustls-insecure"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"
 thiserror = "2"
