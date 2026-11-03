@@ -14,8 +14,9 @@ bot (AXLR) ──stdio──▶ <tool>-mcp ──▶ the system's API
 |---|---|---|---|
 | [`mcp/`](mcp/) | — | the MCP client, over `rmcp` | — |
 | [`argo-workflows/`](argo-workflows/) | `argo-workflows-mcp` | Argo Server's HTTP API | no |
+| [`kube/`](kube/) | `kube-mcp` | `kubectl`, one tool per verb | only with `KUBE_WRITES=true`, previewed, inside a namespace allowlist and a replica cap |
 
-The design reserves `kube/` for one tool per `kubectl` verb ([design §7.1](../docs/design.md)); the rest of what is planned, and in which order, is in [docs/tools-port.md](../docs/tools-port.md).
+`kube/` is the one tool per `kubectl` verb of [design §7.1](../docs/design.md); the rest of what is planned, and in which order, is in [docs/tools-port.md](../docs/tools-port.md).
 
 ## Build and register
 

@@ -1,0 +1,21 @@
+[package]
+name = "kube-mcp"
+description = "MCP server over kubectl, one tool per verb: reads for a diagnosis bot and, when enabled, previewed writes for a remediation bot, with doctor and discover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "kube-mcp"
+path = "src/bin/kube_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

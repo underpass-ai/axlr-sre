@@ -6,6 +6,7 @@
 tools/
 ├── mcp/               el servidor: ToolHost sobre rmcp, catálogo, argumentos     hecho
 ├── argo-workflows/    el primer tool, solo lectura                               hecho
+├── kube/              un tool por verbo kubectl; escrituras solo con KUBE_WRITES  hecho
 └── <los de abajo>/    uno por PR
 ```
 
@@ -23,7 +24,7 @@ tools/
 |---|---|---|---|---|
 | 1 | `mcp/` | servidor compartido (900) | nombre y textos; `doctor`/`discover` como constructores del catálogo | todo |
 | 2 | `argo-workflows/` | (800) | se añaden `doctor` y `discover`; `http` solo para localhost; namespace por defecto `argo` | fase 3, Argo CD/Workflows |
-| 3 | `kube/` | **nuevo**, no existe en el origen | un tool por verbo `kubectl`, namespace y contexto validados, `diff` que devuelve «hay diferencias» | fase 1, `diag-k8s` y `fix` |
+| 3 | `kube/` | **nuevo**, no existe en el origen | hecho: 8 lecturas en todo servidor y 5 escrituras solo con `KUBE_WRITES=true`; namespace contra la allowlist `KUBE_NAMESPACES`, nunca `secrets`, manifiestos sin los kinds del §8.1, `diff` que devuelve `differences`, `apply` tras diff y dry-run de servidor, `scale` dentro de `KUBE_MAX_REPLICAS` | fase 1, `diag-k8s` y `fix` |
 | 4 | `grafana/` | Loki y dashboards (7 200) | token de service account en vez de la cookie del navegador; fuera la promoción stage→pro | `diag-k8s`, el bot `sre-grafana` |
 | 5 | `opsgenie/` | MCP + daemon (7 100) | API key REST en vez de SSO por navegador; el daemon abre incidentes de axlr-bots: la entrada «espejo» del diseño §5 | entrada de alertas |
 | 6 | `aws-core/` + `aws-metrics/` + `aws-lambda/` | sesiones, CloudWatch, Lambda (280 + 3 400 + 2 200 + 2 600) | perfil, cuenta y región sin valor por defecto; `discover` por región | fase 2, `diag-cloud` |
