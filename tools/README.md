@@ -17,6 +17,7 @@ bot (AXLR) ──stdio──▶ <tool>-mcp ──▶ the system's API
 | [`kube/`](kube/) | `kube-mcp` | `kubectl`, one tool per verb | only with `KUBE_WRITES=true`, previewed, inside a namespace allowlist and a replica cap |
 | [`grafana/`](grafana/) | `grafana-mcp` | Grafana's HTTP API, and Loki, Prometheus and Alertmanager through its datasource proxy | no |
 | [`opsgenie/`](opsgenie/) | `opsgenie-mcp`, `opsgenie-mirror` | Opsgenie's REST API with an API key, within a scope of teams and escalations; the mirror opens an axlr-bots incident per new alert | `OPSGENIE_WRITES=true`: acknowledge, note, close |
+| [`aws/`](aws/) | `aws-mcp` | the `aws` CLI, one subprocess per call: CloudWatch metrics and alarms, Lambda functions, aliases, triggers and log groups, CloudWatch Logs; regions from an allowlist | no |
 
 `kube/` is the one tool per `kubectl` verb of [design §7.1](../docs/design.md); the rest of what is planned, and in which order, is in [docs/tools-port.md](../docs/tools-port.md).
 
