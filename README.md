@@ -24,7 +24,7 @@ scenarios/          ten faults: inject.sh, clear.sh, expected.md each        (ph
 bots/               triage, diag-k8s                                         (phase 0)
 judge/              sre-judge: runs the scenarios, Jev judges the diagnoses          (phase 0)
 runbooks/           crashloop, oom, image-pull, … as catalog skills (planned)
-tools/              the MCP servers the bots call: mcp/ (the server), argo-workflows/, kube/ and grafana/; opsgenie/ next (docs/tools-port.md)
+tools/              the MCP servers the bots call: mcp/ (the server), argo-workflows/, kube/, grafana/ and opsgenie/ (with the mirror daemon); AWS next (docs/tools-port.md)
 deploy/             Helm: two node pods (read-only, write) (planned)
 ```
 

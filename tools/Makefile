@@ -33,9 +33,9 @@ vendor-words:
 build:
 	cargo build --workspace --release
 
-# Copies every binary of the workspace to ~/.local/bin.
+# Copies every binary of the workspace to ~/.local/bin: the MCP servers and the mirror daemon.
 install: build
-	@for bin in target/release/*-mcp; do install -m755 "$$bin" "$$HOME/.local/bin/"; echo "installed $$bin"; done
+	@for bin in target/release/*-mcp target/release/*-mirror; do install -m755 "$$bin" "$$HOME/.local/bin/"; echo "installed $$bin"; done
 
 $(addprefix ci-,$(CRATES)): ci-%:
 	cargo fmt -p $$(sed -n 's/^name = "\(.*\)"/\1/p' $*/Cargo.toml | head -1) -- --check
