@@ -1,0 +1,30 @@
+[package]
+name = "opsgenie-mcp"
+description = "MCP server over Opsgenie's REST API with an API key: the open alerts of a team scope, one alert and its notes, and with OPSGENIE_WRITES acknowledge, note and close with a preview first; plus opsgenie-mirror, the daemon that opens an axlr-bots incident for every new alert of the scope and resolves it when the alert closes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "opsgenie-mcp"
+path = "src/bin/opsgenie_mcp.rs"
+
+[[bin]]
+name = "opsgenie-mirror"
+path = "src/bin/opsgenie_mirror.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+jiff.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
