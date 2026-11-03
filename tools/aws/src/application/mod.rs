@@ -3,7 +3,7 @@ mod discover_scope;
 mod inspect_lambda;
 mod query_logs;
 mod query_metrics;
-pub(crate) mod shared;
+pub mod shared;
 
 pub use diagnose_setup::DiagnoseSetup;
 pub use discover_scope::DiscoverScope;

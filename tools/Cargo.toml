@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mcp", "argo-workflows", "kube", "grafana", "opsgenie", "aws"]
+members = ["mcp", "argo-workflows", "kube", "grafana", "opsgenie", "aws", "messaging"]
 
 [workspace.package]
 version = "0.1.0"
