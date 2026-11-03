@@ -1,4 +1,6 @@
 name: ci
+permissions:
+  contents: read
 on:
   push:
     branches: [main]
@@ -18,3 +20,19 @@ jobs:
           go test -cover ./judge/... ./cmd/... 2>&1 | tee cover.txt
           awk '/coverage:/ { gsub("%", "", $(NF-2)); if ($(NF-2)+0 < 80) { print "under 80 %: " $0; bad = 1 } } END { exit bad }' cover.txt
       - run: bash -n lab/up.sh lab/down.sh bots/register.sh judge/run.sh scenarios/*/*.sh
+  tools:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools
+      - name: fmt, clippy, tests, 80 % of lines per crate, no vendor words
+        run: make ci
