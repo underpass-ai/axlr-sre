@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mcp", "argo-workflows", "kube"]
+members = ["mcp", "argo-workflows", "kube", "grafana"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ repository = "https://github.com/underpass-ai/axlr-sre"
 [workspace.dependencies]
 anyhow = "1"
 async-trait = "0.1"
+jiff = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 rmcp = { version = "3.7.0", default-features = false, features = ["server", "transport-io"] }
 serde = "1"
