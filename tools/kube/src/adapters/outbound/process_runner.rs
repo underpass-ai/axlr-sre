@@ -11,11 +11,13 @@ use crate::domain::Invocation;
 use crate::ports::{Completed, KubectlRunner};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(90);
+const WAIT_MARGIN: Duration = Duration::from_secs(30);
 
 /// Spawns `kubectl`. Its stdin, stdout and stderr are always pipes or null,
 /// never inherited: this process's own stdio is the MCP protocol. The
 /// external diff variable is dropped so no environment can swap the program
-/// `kubectl diff` runs. A run that outlives the timeout is killed.
+/// `kubectl diff` runs. A run that outlives the timeout is killed; a run that
+/// legitimately waits (a rollout status) gets its wait plus a margin.
 pub struct ProcessRunner {
     kubectl: PathBuf,
     context: Option<String>,
@@ -38,9 +40,8 @@ impl ProcessRunner {
     }
 }
 
-#[async_trait]
-impl KubectlRunner for ProcessRunner {
-    async fn run(&self, invocation: &Invocation) -> Result<Completed> {
+impl ProcessRunner {
+    fn command(&self, invocation: &Invocation) -> Command {
         let mut command = Command::new(&self.kubectl);
         if let Some(context) = &self.context {
             command.arg("--context").arg(context);
@@ -56,7 +57,22 @@ impl KubectlRunner for ProcessRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        let mut child = command
+        command
+    }
+
+    fn timeout_for(&self, invocation: &Invocation) -> Duration {
+        invocation.wait_seconds().map_or(self.timeout, |wait| {
+            self.timeout.max(Duration::from_secs(wait) + WAIT_MARGIN)
+        })
+    }
+}
+
+#[async_trait]
+impl KubectlRunner for ProcessRunner {
+    async fn run(&self, invocation: &Invocation) -> Result<Completed> {
+        let timeout = self.timeout_for(invocation);
+        let mut child = self
+            .command(invocation)
             .spawn()
             .with_context(|| format!("could not start {}", self.kubectl.display()))?;
         if let Some(text) = invocation.stdin()
@@ -68,13 +84,13 @@ impl KubectlRunner for ProcessRunner {
                 let _ = stdin.shutdown().await;
             });
         }
-        let output = tokio::time::timeout(self.timeout, child.wait_with_output())
+        let output = tokio::time::timeout(timeout, child.wait_with_output())
             .await
             .map_err(|_| {
                 anyhow!(
                     "kubectl {} did not finish in {}s and was killed",
                     invocation.verb(),
-                    self.timeout.as_secs()
+                    timeout.as_secs()
                 )
             })?
             .context("waiting for kubectl")?;
@@ -112,7 +128,7 @@ mod tests {
                 let path = dir.join("kubectl");
                 std::fs::write(
                     &path,
-                    "#!/bin/sh\ncase \"$3\" in\n  slow) sleep 5 ;;\n  fail) echo boom >&2; exit 3 ;;\nesac\necho \"args=$*\"\necho \"ext=${KUBECTL_EXTERNAL_DIFF:-unset}\"\nif [ \"$1\" = diff ]; then cat; exit 1; fi\n",
+                    "#!/bin/sh\ncase \"$3\" in\n  *slow*) sleep 2 ;;\n  fail) echo boom >&2; exit 3 ;;\nesac\necho \"args=$*\"\nif [ \"$1\" = diff ]; then cat; exit 1; fi\n",
                 )
                 .unwrap();
                 std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -122,9 +138,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn arguments_and_context_reach_kubectl_and_the_diff_variable_does_not() {
-        // SAFETY: this test alone sets the variable; the runner must drop it for its child.
-        unsafe { std::env::set_var("KUBECTL_EXTERNAL_DIFF", "evil") };
+    async fn arguments_and_context_reach_kubectl() {
         let runner = ProcessRunner::new(fake_kubectl(), Some("kind-lab".into()));
         let completed = runner
             .run(&Invocation::describe("ns", "pods", "web").unwrap())
@@ -138,8 +152,49 @@ mod tests {
             "{}",
             completed.stdout
         );
-        assert!(completed.stdout.contains("ext=unset"));
         assert!(completed.stderr.is_empty());
+    }
+
+    #[test]
+    fn the_child_never_inherits_the_external_diff() {
+        let runner = ProcessRunner::new("kubectl", None);
+        let command = runner.command(&Invocation::version());
+        let envs: Vec<_> = command.as_std().get_envs().collect();
+        assert!(envs.contains(&(std::ffi::OsStr::new("KUBECTL_EXTERNAL_DIFF"), None)));
+        assert_eq!(command.as_std().get_program(), "kubectl");
+    }
+
+    #[test]
+    fn a_waiting_run_gets_its_wait_plus_a_margin() {
+        use crate::domain::{RolloutAction, RolloutTarget};
+        let runner = ProcessRunner::new("kubectl", None).with_timeout(Duration::from_secs(1));
+        let status = Invocation::rollout(
+            "ns",
+            RolloutAction::Status,
+            RolloutTarget::Deployment,
+            "web",
+            600,
+            None,
+        )
+        .unwrap();
+        assert_eq!(runner.timeout_for(&status), Duration::from_secs(630));
+        assert_eq!(
+            runner.timeout_for(&Invocation::version()),
+            Duration::from_secs(1)
+        );
+        let short = Invocation::rollout(
+            "ns",
+            RolloutAction::Status,
+            RolloutTarget::Deployment,
+            "web",
+            1,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            ProcessRunner::new("kubectl", None).timeout_for(&short),
+            DEFAULT_TIMEOUT
+        );
     }
 
     #[tokio::test]
@@ -167,14 +222,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_slow_run_is_killed_at_the_timeout() {
+    async fn a_slow_run_is_killed_at_the_timeout_unless_it_is_a_wait() {
+        use crate::domain::{RolloutAction, RolloutTarget};
         let runner =
             ProcessRunner::new(fake_kubectl(), None).with_timeout(Duration::from_millis(200));
         let error = runner
             .run(&Invocation::describe("ns", "pods", "slow").unwrap())
             .await
             .unwrap_err();
-        assert!(error.to_string().contains("did not finish"), "{error}");
+        assert!(
+            error.to_string().contains("did not finish in 0s"),
+            "{error}"
+        );
+        let status = Invocation::rollout(
+            "ns",
+            RolloutAction::Status,
+            RolloutTarget::Deployment,
+            "slow",
+            1,
+            None,
+        )
+        .unwrap();
+        let completed = runner.run(&status).await.unwrap();
+        assert!(completed.succeeded());
+        assert!(completed.stdout.contains("rollout status deployment/slow"));
     }
 
     #[tokio::test]

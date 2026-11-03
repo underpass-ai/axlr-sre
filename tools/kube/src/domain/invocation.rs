@@ -95,6 +95,7 @@ impl RolloutAction {
 pub struct Invocation {
     args: Vec<String>,
     stdin: Option<String>,
+    wait_seconds: Option<u64>,
 }
 
 fn strings<const N: usize>(parts: [&str; N]) -> Vec<String> {
@@ -103,7 +104,11 @@ fn strings<const N: usize>(parts: [&str; N]) -> Vec<String> {
 
 impl Invocation {
     fn new(args: Vec<String>) -> Self {
-        Self { args, stdin: None }
+        Self {
+            args,
+            stdin: None,
+            wait_seconds: None,
+        }
     }
 
     fn with_stdin(mut self, stdin: &str) -> Self {
@@ -119,6 +124,13 @@ impl Invocation {
     #[must_use]
     pub fn stdin(&self) -> Option<&str> {
         self.stdin.as_deref()
+    }
+
+    /// How long this run legitimately waits (a rollout status), so the
+    /// runner's kill timer stretches past it.
+    #[must_use]
+    pub fn wait_seconds(&self) -> Option<u64> {
+        self.wait_seconds
     }
 
     /// The verb, for error messages.
@@ -299,6 +311,10 @@ impl Invocation {
                 });
             }
             args.extend(strings(["--timeout", &format!("{timeout_seconds}s")]));
+            return Ok(Self {
+                wait_seconds: Some(timeout_seconds.unsigned_abs()),
+                ..Self::new(args)
+            });
         }
         if action == RolloutAction::Undo
             && let Some(revision) = revision
