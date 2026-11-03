@@ -114,18 +114,30 @@ impl Invocation {
         }
     }
 
-    fn arg(mut self, flag: &str, value: impl ToString) -> Self {
-        self.args.push(flag.to_string());
-        self.args.push(value.to_string());
-        self
+    /// A run built by a sibling crate whose own domain validated every
+    /// argument: no token of `args` may start with `-` unless it is one of
+    /// that crate's flags. `region` is validated here.
+    pub fn raw(region: &str, args: Vec<String>) -> Result<Self, InputError> {
+        Ok(Self {
+            region: Some(super::region(region)?),
+            args,
+        })
     }
 
-    fn paged(self, max_items: i64, token: Option<&str>) -> Self {
+    /// A paged listing: `--max-items` and, with a token, `--starting-token`.
+    #[must_use]
+    pub fn paged(self, max_items: i64, token: Option<&str>) -> Self {
         let with_max = self.arg("--max-items", max_items);
         match token {
             Some(token) => with_max.arg("--starting-token", token),
             None => with_max,
         }
+    }
+
+    fn arg(mut self, flag: &str, value: impl ToString) -> Self {
+        self.args.push(flag.to_string());
+        self.args.push(value.to_string());
+        self
     }
 
     /// `aws --version`: no region, no credentials.
@@ -489,6 +501,18 @@ mod tests {
             Invocation::log_events("eu-west-1", "/g", &window(), Some("-x"), 10, None).is_err()
         );
         assert!(Invocation::log_events("eu-west-1", "/g", &window(), None, 1001, None).is_err());
+    }
+
+    #[test]
+    fn a_raw_invocation_checks_its_region_and_pages() {
+        let raw = Invocation::raw("eu-west-1", vec!["sqs".into(), "list-queues".into()]).unwrap();
+        assert_eq!(raw.verb(), "sqs list-queues");
+        assert!(has(
+            &raw.clone().paged(5, Some("t")),
+            "--starting-token",
+            "t"
+        ));
+        assert!(Invocation::raw("mars", vec![]).is_err());
     }
 
     #[test]

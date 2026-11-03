@@ -1,0 +1,24 @@
+[package]
+name = "messaging-mcp"
+description = "MCP server over the aws CLI for SQS and SNS: queues with their depth, redrive policy and sources, a look at the messages of a queue, topics and subscriptions; and with MESSAGING_WRITES, send, publish, redrive, cancel and drain with the evidence saved before any delete, each previewed first"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "messaging-mcp"
+path = "src/bin/messaging_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+aws-mcp = { path = "../aws" }
+jiff.workspace = true
+serde_json.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
