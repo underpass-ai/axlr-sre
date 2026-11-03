@@ -1,0 +1,25 @@
+[package]
+name = "grafana-mcp"
+description = "Read-only MCP server over Grafana's HTTP API with a service account token: Loki logs, Prometheus metrics, dashboards and alerts through the datasource proxy, with doctor and discover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "grafana-mcp"
+path = "src/bin/grafana_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+jiff.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+wiremock.workspace = true
