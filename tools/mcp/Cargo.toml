@@ -1,0 +1,17 @@
+[package]
+name = "sre-mcp"
+description = "The MCP server every axlr-sre tool is built on: a ToolHost served over stdio by the official rmcp SDK, the tool catalogue and the reading of arguments"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "sre_mcp"
+path = "src/lib.rs"
+
+[dependencies]
+async-trait.workspace = true
+rmcp.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

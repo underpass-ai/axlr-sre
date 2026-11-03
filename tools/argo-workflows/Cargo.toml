@@ -1,0 +1,24 @@
+[package]
+name = "argo-workflows-mcp"
+description = "Read-only MCP server over the Argo Workflows API: workflows, templates, cron workflows and bounded logs, with doctor and discover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "argo-workflows-mcp"
+path = "src/bin/argo_workflows_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+wiremock.workspace = true
