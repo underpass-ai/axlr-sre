@@ -19,6 +19,7 @@ bot (AXLR) ──stdio──▶ <tool>-mcp ──▶ the system's API
 | [`opsgenie/`](opsgenie/) | `opsgenie-mcp`, `opsgenie-mirror` | Opsgenie's REST API with an API key, within a scope of teams and escalations; the mirror opens an axlr-bots incident per new alert | `OPSGENIE_WRITES=true`: acknowledge, note, close |
 | [`aws/`](aws/) | `aws-mcp` | the `aws` CLI, one subprocess per call: CloudWatch metrics and alarms, Lambda functions, aliases, triggers and log groups, CloudWatch Logs; regions from an allowlist | no |
 | [`messaging/`](messaging/) | `messaging-mcp` | the `aws` CLI for SQS and SNS: queues, depth, redrive policy and sources, a look at messages, topics and subscriptions | `MESSAGING_WRITES=true`: send, publish, redrive, cancel, drain with the evidence saved first |
+| [`postgres/`](postgres/) | `postgres-mcp` | one PostgreSQL database through the libpq environment: bounded read-only queries, plans, activity, locks, table and index statistics, pg_stat_statements, settings, replication | `POSTGRES_WRITES=maintenance` (VACUUM, ANALYZE, REINDEX, CREATE INDEX CONCURRENTLY, ALTER) or `all`, previewed |
 
 `kube/` is the one tool per `kubectl` verb of [design §7.1](../docs/design.md); the rest of what is planned, and in which order, is in [docs/tools-port.md](../docs/tools-port.md).
 

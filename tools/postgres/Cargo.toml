@@ -1,0 +1,28 @@
+[package]
+name = "postgres-mcp"
+description = "MCP server for one PostgreSQL database reached with the libpq environment: bounded read-only queries, plans, activity, locks, table and index statistics, pg_stat_statements, settings and replication; and with POSTGRES_WRITES, maintenance statements or DML with a preview first"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "postgres-mcp"
+path = "src/bin/postgres_mcp.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+jiff.workspace = true
+rustls.workspace = true
+serde_json.workspace = true
+sre-mcp.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["net"] }
+tokio-postgres.workspace = true
+tokio-postgres-rustls.workspace = true
+url.workspace = true
+webpki-roots.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
