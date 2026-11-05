@@ -13,7 +13,7 @@ import (
 // scenario, and each scenario's facts.
 func Render(run domain.Run, goals domain.Goals) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "| Measure | Result | Phase 0 goal |\n|---|---|---|\n")
+	fmt.Fprintf(&b, "| Measure | Result | %s goal |\n|---|---|---|\n", goals.Name)
 	fmt.Fprintf(&b, "| scenarios that fired their alert and opened one incident | %d / %d | %d / %d |\n", run.Fired(), len(run.Results), goals.Scenarios, goals.Scenarios)
 	fmt.Fprintf(&b, "| causes Jev found stated in full (partly) | %d / %d (%d) | %d / %d |\n", run.Correct(), len(run.Results), run.Partly(), goals.Correct, goals.Scenarios)
 	fmt.Fprintf(&b, "| duplicate incidents | %d | %d |\n", run.Duplicates(), goals.Duplicates)

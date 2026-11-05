@@ -13,7 +13,7 @@ import (
 const usage = `usage: sre-judge <command> [flags]
 
   run     inject each scenario, wait for its incident to settle, judge the diagnosis with Jev, clear;
-          one JSON per scenario in --out, the tables at the end; exit 1 when phase 0's goals fail
+          one JSON per scenario in --out, the tables at the end; exit 1 when the read node's goals fail
   score   judge one incident's diagnosis (or a text file) against a scenario's expected.md
   report  rebuild the tables from the JSON files in --out; exit 1 when the goals fail
 

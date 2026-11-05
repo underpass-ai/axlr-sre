@@ -2,7 +2,7 @@
 
 A brigade of bots that resolves Kubernetes and cloud incidents on [AXLR Bots](https://github.com/underpass-ai/axlr-bots): it receives the alert, diagnoses with evidence, proposes the fix as a diff, applies it when a person approves, verifies and writes the postmortem. The model proposes; the policy and the person decide; the panel shows everything.
 
-**Status:** phase 1 started. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)). **Phase 1, 5 November:** the bots run on the read-only node `sre-ro` through `kube-mcp`; 8 / 9 correct in each of two runs, 0 duplicates ([the runs](#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). Next: the write node `sre-rw` and `fix` in `propose`, starting with drift.
+**Status:** phase 1 started. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)). **Phase 1, 5 November:** the bots run on the read-only node `sre-ro` through `kube-mcp`; 8 / 9 correct in each of two runs, 0 duplicates, the read node's goal cleared ([the runs](#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). Next: the write node `sre-rw` and `fix` in `propose`, starting with drift.
 
 ```text
 Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident ──▶ triage ──▶ diag-k8s / diag-cloud ──▶ fix (approval) ──▶ verify ──▶ scribe
@@ -205,19 +205,19 @@ The judge's rule is stricter than the goal's wording: a diagnosis is *correct* o
 
 Same cluster, model (`anthropic/claude-haiku-5.5`), judge (`jev-1.13.0`) and `expected.md` as phase 0. What changed: the bots run on the node [sre-ro](nodes/sre-ro/README.md) and reach the cluster only through [kube-mcp](tools/kube/README.md), read-only, as the ServiceAccount `axlr-sre-read`; `local_exec kubectl` and its glob rules are gone (branch `sre-ro`). **Nine scenarios:** drift's evidence is `kubectl diff`, a server dry run that needs `patch`, so drift moves to the write node `sre-rw` and the `fix` bot ([scenarios/drift/needs-write-node](scenarios/drift/needs-write-node)). `judge/run.sh --soak-for 0`: the hour of resends tests the control plane's grouping, which did not change. Two full runs, never mixed; phase 0's verdicts are kept in [judge/results/phase-0/](judge/results/phase-0/).
 
-**8 / 9 correct in each run, a different miss each time; 0 duplicates; Open → Diagnosed 26–45 s.** `sre-judge` says `passes false` only because phase 0's goals ask for 10 scenarios fired; the goal for the read-only node is not decided yet.
+**8 / 9 correct in each run, a different miss each time; 0 duplicates; Open → Diagnosed 26–45 s. Both clear the read node's goal**, decided on 5 November: the nine scenarios fire, at least eight correct, 0 duplicates, under $1 (`ReadNode` in [judge/domain/goals.go](judge/domain/goals.go); `sre-judge` now judges every run against it). Under phase 0's goal of ten scenarios a nine-scenario run cannot pass, which is why the runs printed `passes false`; run 2's table below is `sre-judge report` against the new goal.
 
 ### Run 2, 21:30–22:00 UTC: the bots as committed
 
-| Measure | Result | Phase 0 goal |
+| Measure | Result | Read node goal |
 |---|---|---|
-| scenarios that fired their alert and opened one incident | 9 / 9 | 10 / 10 |
-| causes Jev found stated in full (partly) | 8 / 9 (1) | 8 / 10 |
+| scenarios that fired their alert and opened one incident | 9 / 9 | 9 / 9 |
+| causes Jev found stated in full (partly) | 8 / 9 (1) | 8 / 9 |
 | duplicate incidents | 0 | 0 |
 | Open → Diagnosed | 26 s–35 s | < 3m0s |
 | cost of the whole run, children included | $0.194 | < $1 |
 | cost of judging (Jev) | $0.0023 | |
-| passes | false | |
+| passes | true | |
 
 | Scenario | Alert | Trigger answers | Inject → settled | Open → settled | Cost | Resends | Duplicates | Other alerts | Facts stated | Fix proposed | Cause |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -267,7 +267,7 @@ $0.119 for run 1 and $0.194 for run 2, against $0.093 for phase 0's ten: about $
 |---|---|---|
 | The model first calls `kube/describe`, `kube/events`, `kube/logs` | AXLR rejects a prefixed name as an unknown plugin tool: three calls lost in the smoke run before it tried `describe` | the missions and the runbook say to call each tool by its exact name |
 | `kubectl diff` is not a read for RBAC | drift cannot be diagnosed on `sre-ro` | drift belongs to `sre-rw` and `fix`; `sre-judge` leaves it out by default, `--only drift` still runs it |
-| phase 0's goals are fixed at 10 scenarios | a nine-scenario run reports `passes false` | open: a goal for the read-only node |
+| phase 0's goals are fixed at 10 scenarios | a nine-scenario run printed `passes false` | the read node's goal: nine fire, eight correct |
 
 ## License
 

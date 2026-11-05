@@ -24,9 +24,9 @@ func reportCommand(args []string) error {
 	if len(run.Results) == 0 {
 		return errors.New("no results under " + c.out)
 	}
-	fmt.Print(markdown.Render(run, domain.Phase0))
-	if !run.Passes(domain.Phase0) {
-		return errors.New("the run does not clear phase 0's goals")
+	fmt.Print(markdown.Render(run, domain.ReadNode))
+	if !run.Passes(domain.ReadNode) {
+		return errors.New("the run does not clear the read node's goals")
 	}
 	return nil
 }

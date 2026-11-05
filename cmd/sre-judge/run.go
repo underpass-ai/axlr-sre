@@ -70,9 +70,9 @@ func runCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Print("\n" + markdown.Render(run, domain.Phase0))
-	if !run.Passes(domain.Phase0) {
-		return errors.New("the run does not clear phase 0's goals")
+	fmt.Print("\n" + markdown.Render(run, domain.ReadNode))
+	if !run.Passes(domain.ReadNode) {
+		return errors.New("the run does not clear the read node's goals")
 	}
 	return nil
 }

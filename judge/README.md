@@ -19,7 +19,7 @@ go run ./cmd/sre-judge report       # the tables again, from judge/results
 go run ./cmd/sre-judge score --expected scenarios/oom/expected.md --incident <id>   # one incident, offline
 ```
 
-The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or from `~/.config/axlr-bots/env` (the node's file) and never prints it. The control plane is read over its socket, as the `axlr-bots` CLI does. Exit 1 when the run does not clear phase 0's goals.
+The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or from `~/.config/axlr-bots/env` (the node's file) and never prints it. The control plane is read over its socket, as the `axlr-bots` CLI does. Exit 1 when the run does not clear the read node's goals: the nine scenarios it can diagnose fire, at least eight correct, 0 duplicates, under $1 (`ReadNode` in `domain/goals.go`, decided on 5 November 2026; phase 0's ten-scenario bar is kept as `Phase0`).
 
 | Flag | Default | |
 |---|---|---|

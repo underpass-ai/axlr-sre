@@ -51,6 +51,23 @@ func TestRunTotalsAndGoals(t *testing.T) {
 	}
 }
 
+func TestReadNodeGoalsAreNineFiredAndEightCorrect(t *testing.T) {
+	var results []Result
+	for i, o := range []Outcome{Correct, Correct, Correct, Correct, Correct, Correct, Correct, Correct, Partly} {
+		results = append(results, result(string(rune('a'+i)), o, 0.02, 0))
+	}
+	if !NewRun(results).Passes(ReadNode) {
+		t.Fatal("8/9 correct, all fired, no duplicates, under $1 passes")
+	}
+	if NewRun(results[:8]).Passes(ReadNode) {
+		t.Fatal("eight scenarios are not nine")
+	}
+	results[0] = result("a", Partly, 0.02, 0)
+	if NewRun(results).Passes(ReadNode) {
+		t.Fatal("7/9 correct fails")
+	}
+}
+
 func TestResultOutcomeNeedsADiagnosis(t *testing.T) {
 	r := result("x", Correct, 0, 0)
 	if r.Outcome() != Correct || r.InjectToSettled() != 90*time.Second || !r.Fired() {
