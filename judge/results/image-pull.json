@@ -1,0 +1,95 @@
+{
+  "Scenario": "image-pull",
+  "Alert": "LabImagePullBackOff",
+  "IncidentID": "inc-e76583da282c48d350211a68",
+  "Cycle": 2,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:42:23.240155438+01:00",
+  "SettledAt": "2026-11-05T22:44:38.576236583+01:00",
+  "OpenToSettled": 28450761295,
+  "CostUSD": 0.019578095000000004,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Deployment `catalog` in namespace `shop` points its container at the non-existent image `docker.io/library/nginx:1.99`, so pod `catalog-6b8cf764b7-8dff9` cannot pull its image and never starts.\n\nEVIDENCE:\n1. Pod `catalog-6b8cf764b7-8dff9`, container `catalog`: Image `docker.io/library/nginx:1.99`, State Waiting, Reason `ImagePullBackOff`, Restart Count 0 (my call: describe pod catalog-6b8cf764b7-8dff9, namespace shop; diag-k8s made the same read).\n2. Pod events: `Failed to pull image \"docker.io/library/nginx:1.99\": ... docker.io/library/nginx:1.99: not found` (code NotFound), then `Error: ErrImagePull`, then `Error: ImagePullBackOff` with Back-off events (my call: describe pod catalog-6b8cf764b7-8dff9, namespace shop).\n3. Namespace events: the same NotFound pull error and ErrImagePull/ImagePullBackOff also appear on the earlier pod `catalog-6b8cf764b7-td86w` (count 4 ErrImagePull, 8 ImagePullBackOff), so this is not a one-off pod problem (diag-k8s call: events, warnings_only true, namespace shop).\n4. Deployment `catalog`, revision 1 (`deployment.kubernetes.io/revision: \"1\"`, no change-cause), template image `docker.io/library/nginx:1.99`, `imagePullPolicy: IfNotPresent`, no imagePullSecrets; status `Available=False`, reason `MinimumReplicasUnavailable`, `unavailableReplicas: 1` (diag-k8s call: get deployment catalog, namespace shop, raw true).\n5. Logs: `container \"catalog\" in pod \"catalog-6b8cf764b7-8dff9\" is waiting to start: image can't be pulled`, so there is no container output to read (diag-k8s call: logs pod catalog-6b8cf764b7-8dff9, namespace shop).\n\nFIX (not applied): change the image of Deployment `shop/catalog` from `docker.io/library/nginx:1.99` to an existing tag (for example `docker.io/library/nginx:1.27`, after confirming the tag exists in the registry) so the new ReplicaSet can pull and start.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `catalog` (container `catalog`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.91,
+          "InputTokens": 985,
+          "Took": 161093393
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 979,
+          "Took": 176571772
+        }
+      },
+      {
+        "Fact": {
+          "Name": "state",
+          "Value": "`ImagePullBackOff` / `ErrImagePull`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.83,
+          "InputTokens": 993,
+          "Took": 138309543
+        }
+      },
+      {
+        "Fact": {
+          "Name": "image",
+          "Value": "`docker.io/library/nginx:1.99`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 988,
+          "Took": 133894033
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the tag `1.99` does not exist in the registry (`not found`), not a credentials problem"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.95,
+          "InputTokens": 999,
+          "Took": 161920415
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "set an existing tag (for example `nginx:1.27-alpine`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.8,
+          "InputTokens": 1001,
+          "Took": 160471138
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

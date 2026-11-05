@@ -19,7 +19,7 @@ jobs:
         run: |
           go test -cover ./judge/... ./cmd/... 2>&1 | tee cover.txt
           awk '/coverage:/ { gsub("%", "", $(NF-2)); if ($(NF-2)+0 < 80) { print "under 80 %: " $0; bad = 1 } } END { exit bad }' cover.txt
-      - run: bash -n lab/up.sh lab/down.sh bots/register.sh judge/run.sh scenarios/*/*.sh
+      - run: bash -n lab/up.sh lab/down.sh bots/register.sh judge/run.sh scenarios/*/*.sh nodes/*/*.sh
   tools:
     runs-on: ubuntu-latest
     defaults:

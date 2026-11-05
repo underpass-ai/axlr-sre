@@ -1,0 +1,95 @@
+{
+  "Scenario": "hpa-maxed",
+  "Alert": "LabHPAMaxedOut",
+  "IncidentID": "inc-b939ae7475127d49941faf2f",
+  "Cycle": 2,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:39:26.336318629+01:00",
+  "SettledAt": "2026-11-05T22:42:21.73852411+01:00",
+  "OpenToSettled": 26261999213,
+  "CostUSD": 0.023756435000000003,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: HPA shop/search is pinned at its maxReplicas of 3, because the Deployment load in namespace shop runs three busybox loops that call http://search nonstop, pushing search CPU to 186% of request against a 50% target.\n\nEVIDENCE:\n1. describe hpa/search (namespace shop, my check): Min 1, Max 3, \"Deployment pods: 3 current / 3 desired\", CPU \"186% (18m) / 50%\" as a percentage of request, ScalingLimited=True with reason TooManyReplicas (\"desired replica count is more than the maximum replica count\").\n2. describe deployment/load (shop, diag-k8s): image docker.io/library/busybox:1.37, command `for i in 1 2 3; do (while true; do wget -q -O /dev/null http://search; done) \u0026 done; wait`, CPU request 10m, limit 500m, 1/1 available.\n3. get pod (shop, diag-k8s): load-55fdc5b776-ktjb5 has IP 10.244.2.74 and is Running 1/1. The search pods are 10.244.2.73, 10.244.2.75 and 10.244.1.16.\n4. logs search-5ccfdcf4cf-l7m4v, tail 50 (shop, diag-k8s): every line is `10.244.2.74 ... \"GET / HTTP/1.1\" 200 615 \"-\" \"Wget\"`, so the caller is the load pod.\n5. events (shop, diag-k8s): HPA/search Normal SuccessfulRescale \"New size: 3; reason: cpu resource utilization (percentage of request) above target\". Earlier Warning FailedGetResourceMetric \"no metrics returned from resource metrics API\" and FailedComputeMetricsReplicas (my describe hpa/search, events section, confirms both).\n\nFIX (not applied): scale the Deployment load in namespace shop to zero replicas (or delete it), provided the traffic is not legitimate; if it is, raise the HPA maxReplicas above 3 instead.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "HPA `search` on Deployment `search`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.89,
+          "InputTokens": 908,
+          "Took": 173539414
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 901,
+          "Took": 135449773
+        }
+      },
+      {
+        "Fact": {
+          "Name": "state",
+          "Value": "current replicas `3` = `maxReplicas` `3`; `ScalingLimited` / `TooManyReplicas`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.83,
+          "InputTokens": 925,
+          "Took": 154736113
+        }
+      },
+      {
+        "Fact": {
+          "Name": "load",
+          "Value": "CPU above the `50 %` target (request `10m`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.87,
+          "InputTokens": 914,
+          "Took": 147974848
+        }
+      },
+      {
+        "Fact": {
+          "Name": "source",
+          "Value": "the load comes from the Deployment `load`, which calls `search`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.97,
+          "InputTokens": 912,
+          "Took": 133202642
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "raise `maxReplicas` within bounds, or the CPU request; or stop the load if it is not legitimate"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.51,
+          "InputTokens": 928,
+          "Took": 136437386
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

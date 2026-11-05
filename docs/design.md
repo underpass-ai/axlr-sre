@@ -223,7 +223,7 @@ Dos capas siempre: la política de AXLR decide la llamada; RBAC e IAM deciden lo
 | (b) **servidor MCP `kube` con una tool por verbo** (`kube_get`, `kube_describe`, `kube_logs`, `kube_events`, `kube_diff`, `kube_apply`, `kube_rollout`, `kube_scale`) | la política es por tool, sin globs; cada tool valida sus argumentos (namespace, bounds); `diff` devuelve «hay diferencias», no error | hay que escribirlo (Go, pequeño, en el nodo como el relé de delegación) |
 | (c) tools del catálogo firmado | versionadas, fijadas por ejecución | el catálogo no ejecuta nada por sí mismo; (b) y (c) se combinan: (c) distribuye (b) |
 
-Por defecto **(b)**, publicada como entrada del catálogo (c). Cada tool recibe el `namespace` como argumento y lo contrasta con `allowedNamespaces` de la definición del bot.
+Por defecto **(b)**, publicada como entrada del catálogo (c). Cada tool recibe el `namespace` como argumento y lo contrasta con `allowedNamespaces` de la definición del bot. Hecho como `tools/kube/` (Rust, [kube-mcp](../tools/kube/README.md)): las tools se llaman `get`, `describe`, `logs`… sin prefijo y la lista de namespaces es `KUBE_NAMESPACES` del servidor, no de la definición del bot.
 
 ### 7.2 Un nodo por ServiceAccount
 
@@ -235,6 +235,8 @@ Las ejecuciones comparten el sidecar: su usuario, su ServiceAccount, sus límite
 | `sre-rw` | `axlr-sre-write` | `fix` | lo de arriba más `patch`, `update` en Deployment, StatefulSet, HPA, ConfigMap; `delete` solo de Pod; **nunca** Namespace, PVC, CRD, Node, Secret |
 
 Placement por `labels`: `{"role": "sre-ro"}` y `{"role": "sre-rw"}`. Un Job por ejecución (identidad por ejecución) queda fuera, como hoy.
+
+**Hecho en el laboratorio (5 de noviembre de 2026):** el nodo `sre-ro` corre en gx10 como un segundo `axlr-node` (`--node-id sre-ro --labels role=sre-ro --dedicated`), con su propio `mcp.json` que solo nombra `kube-mcp`, y `kube-mcp` usa el token de `axlr-sre-read` ([nodes/sre-ro](../nodes/sre-ro/README.md)). `triage` y `diag-k8s` lo eligen con `placement.selector`. Una consecuencia que el diseño no preveía: **`kubectl diff` no es una lectura para RBAC** (es un dry-run de servidor y pide `patch`), así que `drift` pasa al nodo `sre-rw` y al bot `fix`; `sre-judge` lo deja fuera de su corrida por defecto (`scenarios/drift/needs-write-node`).
 
 ### 7.3 Cloud: AWS primero, estrecho (Q5)
 
@@ -375,6 +377,8 @@ Alertmanager real en el kind (kube-prometheus-stack) mandando a `POST /v1/trigge
 | **1** proponer | tool `kube` por verbo; nodos `sre-ro`/`sre-rw`; pantalla Incidentes; `fix` en `propose` | el diff de cada escenario es el esperado; el panel enseña el incidente entero |
 | **2** actuar con aprobación | runbooks como skills firmadas; `fix` en `act-with-approval`; Slack; `diag-cloud` con rol de lectura en AWS | 10/10 escenarios arreglados con una aprobación; móvil probado |
 | **3** actuar solo | autonomía progresiva por runbook; quién aprueba y dos personas en prod; postmortem; KMP; CloudWatch; rol de remediación en AWS | un runbook llega a `act-within-policy` solo por historial; un postmortem aprobado por una persona |
+
+**Estado de la fase 1 (5 de noviembre de 2026):** hechos la tool `kube` (`tools/kube/`), el nodo `sre-ro` con `axlr-sre-read` ([nodes/sre-ro](../nodes/sre-ro/README.md)) y la pantalla Incidentes (axlr-bots #101). `triage` y `diag-k8s` corren en `sre-ro` solo con `kube-mcp`: 8/9 correctas en dos corridas completas, 0 duplicados ([README](../README.md#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). `drift` pasa a `sre-rw`. Faltan el nodo `sre-rw` y `fix` en `propose`, y decidir la meta del nodo de lectura (las metas de fase 0 piden 10 escenarios).
 
 ### 12.1 Fase 0 en detalle
 

@@ -1,0 +1,83 @@
+{
+  "Scenario": "node-notready",
+  "Alert": "LabNodeNotReady",
+  "IncidentID": "inc-dbd89bcffcb43f5f387cc4fb",
+  "Cycle": 2,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:56:19.155619619+01:00",
+  "SettledAt": "2026-11-05T22:59:29.525336102+01:00",
+  "OpenToSettled": 34440890028,
+  "CostUSD": 0.022872555000000003,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Node sre-lab-worker2 (cluster-scoped, no namespace) is NotReady because its kubelet stopped posting node status, so the node-controller set Ready, MemoryPressure, DiskPressure and PIDPressure to Unknown and tainted the node unreachable; the reason the kubelet went silent is not visible with read-only access.\nEVIDENCE:\n1. Node sre-lab-worker2: Ready=Unknown, reason NodeStatusUnknown, message \"Kubelet stopped posting node status.\", last heartbeat Thu, 05 Nov 2026 22:53:58 +0100, transition 22:57:09 +0100 (describe node sre-lab-worker2, namespace shop, run by me and confirmed by diag-k8s in task-5f38c00c095d03742aaf68f8).\n2. Taints node.kubernetes.io/unreachable:NoExecute and node.kubernetes.io/unreachable:NoSchedule; Events show \"Normal NodeNotReady ... (x4 over 4d11h) node-controller\", latest 2m10s ago (describe node sre-lab-worker2, my call and diag-k8s's describe).\n3. Only this node is affected: sre-lab-control-plane Ready=True, sre-lab-worker Ready=True, sre-lab-worker2 Ready=Unknown (get node, via diag-k8s task-5f38c00c095d03742aaf68f8).\n4. Five pods are still scheduled on it, all in cert-manager (cert-manager-5c746444c8-fxmnw, cert-manager-cainjector-5bb9799457-q8qlr, cert-manager-webhook-df8d46c58-jm5h7) and kube-system (kindnet-88psw, kube-proxy-74ls5), none in shop; Kubelet Version v1.36.1, containerd://2.3.1 (describe node sre-lab-worker2, my call).\n5. Events in namespace shop (warnings only): 23 warnings, none about the node or its kubelet (events, via diag-k8s task-5f38c00c095d03742aaf68f8).\n6. Not checked: the Lease sre-lab-worker2 in kube-node-lease is forbidden for axlr-sre-read (describe node sre-lab-worker2, my call), so the kubelet heartbeat and the kubelet logs were not read.\nFIX (not applied): on the host of sre-lab-worker2, check and restart the kubelet (`systemctl status kubelet`, then `systemctl restart kubelet`) and confirm the node returns to Ready=True and the unreachable taints are removed.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Node `sre-lab-worker2`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.9,
+          "InputTokens": 1048,
+          "Took": 172674533
+        }
+      },
+      {
+        "Fact": {
+          "Name": "condition",
+          "Value": "`Ready` is `Unknown` / `NotReady`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 1052,
+          "Took": 118216820
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the kubelet stopped: `Kubelet stopped posting node status` (every condition `Unknown`), not memory, disk or PID pressure"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.96,
+          "InputTokens": 1068,
+          "Took": 130885515
+        }
+      },
+      {
+        "Fact": {
+          "Name": "side effect",
+          "Value": "taint `node.kubernetes.io/unreachable`; its pods are marked not ready"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.83,
+          "InputTokens": 1060,
+          "Took": 144156305
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "restart the kubelet on the host (`systemctl start kubelet`); cordon the node meanwhile"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.52,
+          "InputTokens": 1069,
+          "Took": 139536240
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

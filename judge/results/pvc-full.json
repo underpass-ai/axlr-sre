@@ -1,0 +1,95 @@
+{
+  "Scenario": "pvc-full",
+  "Alert": "LabVolumeFull",
+  "IncidentID": "inc-21546cf0b804a4a4195e60b6",
+  "Cycle": 2,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:52:46.523489604+01:00",
+  "SettledAt": "2026-11-05T22:55:47.055881028+01:00",
+  "OpenToSettled": 34834738247,
+  "CostUSD": 0.01967698,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Deployment `uploads` in namespace `shop` runs `dd` to write a 200 MiB file (`/data/uploads.bin`) into its 64Mi PersistentVolumeClaim `uploads-data`, so the volume is 100% full and the writes fail with \"No space left on device\".\n\nEVIDENCE:\n1. PVC `uploads-data` (shop): Capacity 64Mi, Status Bound, Volume `lab-uploads`, StorageClass `lab-local`, Access RWO, Used By `uploads-8647dc6f95-fccfg`. Source: diag-k8s `describe {kind: pvc, name: uploads-data, namespace: shop}`; confirmed by my `describe {kind: pvc, name: uploads-data, namespace: shop}`.\n2. Pod `uploads-8647dc6f95-fccfg` logs (count 8, previous false, restarts 0): \"dd: error writing '/data/uploads.bin': No space left on device\", \"67108864 bytes (64.0MB) copied\", \"uploads: write failed\", and `df -h /data` shows \"tmpfs 64.0M 64.0M 0 100% /data\". Source: diag-k8s `logs {pod: uploads-8647dc6f95-fccfg, namespace: shop, tail: 50}`; confirmed by my `logs {pod: uploads-8647dc6f95-fccfg, namespace: shop, tail: 20}`. diag-k8s reported no dd exit code.\n3. Deployment `uploads` (shop) is at revision 1, with no OldReplicaSets and no rollout history change. Its container command is `sh -c \"echo uploads: writing; dd if=/dev/zero of=/data/uploads.bin bs=1M count=200; echo uploads: write failed; df -h /data; sleep 36000\"`, memory limit 256Mi, volume mounted rw at /data. Source: diag-k8s `describe {kind: deployment, name: uploads, namespace: shop}` (not re-read by me; no change-cause recorded).\n4. PV `lab-uploads`: StorageClass `lab-local`, Capacity 64Mi, Reclaim Policy Retain, Node Affinity `sre-lab-worker2`, LocalVolume path `/mnt/lab-uploads`. Source: diag-k8s `describe {kind: pv, name: lab-uploads, namespace: shop}`.\n5. StorageClass `lab-local`: provisioner kubernetes.io/no-provisioner, AllowVolumeExpansion unset, ReclaimPolicy Delete, VolumeBindingMode WaitForFirstConsumer, so the volume cannot be expanded. Source: diag-k8s `describe {kind: storageclass, name: lab-local, namespace: shop}`.\n6. Namespace `shop` warning events (diag-k8s `events {namespace: shop, warnings_only: true}`) include nothing about `uploads-data` or the `uploads` pod; the warnings concern other workloads (cart, payments, orders, catalog, checkout, search HPA).\n\nFIX (not applied): Remove the test file `/data/uploads.bin` from the `uploads` pod's volume, or change the `uploads` Deployment command so it no longer writes 200 MiB into the 64Mi volume, since `lab-local` cannot expand the volume.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "PVC `uploads-data`, mounted at `/data` by Deployment `uploads`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.87,
+          "InputTokens": 1184,
+          "Took": 159443595
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 1172,
+          "Took": 167391286
+        }
+      },
+      {
+        "Fact": {
+          "Name": "usage",
+          "Value": "100 % (or above 95 %) of `64Mi`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1187,
+          "Took": 133017344
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the `uploads` container wrote `uploads.bin` with `dd` until `No space left on device`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 1191,
+          "Took": 131576341
+        }
+      },
+      {
+        "Fact": {
+          "Name": "volume",
+          "Value": "PV `lab-uploads`, StorageClass `lab-local` (no provisioner: it cannot be expanded)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.9,
+          "InputTokens": 1198,
+          "Took": 132824689
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "free space or move to a larger volume; expansion is not possible with this class"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.95,
+          "InputTokens": 1192,
+          "Took": 128298349
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

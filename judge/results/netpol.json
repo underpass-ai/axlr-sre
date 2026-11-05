@@ -1,0 +1,83 @@
+{
+  "Scenario": "netpol",
+  "Alert": "LabPodNotReady",
+  "IncidentID": "inc-121e51fd6aea6340a2ec8afd",
+  "Cycle": 2,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:47:02.462177889+01:00",
+  "SettledAt": "2026-11-05T22:49:43.379449887+01:00",
+  "OpenToSettled": 31201699749,
+  "CostUSD": 0.020570855,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Pod shop/payments-5bc47dccd9-n6ljs is not ready because the NetworkPolicy `deny-all` in namespace shop denies all egress, so its readiness probe `nslookup kubernetes.default.svc.cluster.local` cannot reach DNS and times out.\nEVIDENCE:\n1. Pod shop/payments-5bc47dccd9-n6ljs: phase Running, ready 0/1, restarts 0, node sre-lab-worker2, IP 10.244.2.79. The container did not crash. (diag-k8s, kube get pod, namespace shop)\n2. Describe: Ready False and ContainersReady False. Readiness is `exec [nslookup kubernetes.default.svc.cluster.local] delay=0s timeout=5s period=10s #success=1 #failure=2`. Events: Warning Unhealthy \"Readiness probe failed: command timed out: \\\"nslookup kubernetes.default.svc.cluster.local\\\" timed out after 5s\". (diag-k8s, kube describe pod)\n3. Namespace shop events (warnings only), re-checked by me: reason Unhealthy, count 15, object Pod/payments-5bc47dccd9-n6ljs, same nslookup timeout message. The same probe timeout also appears on sibling Pod/payments-5bc47dccd9-hxf47 (count 17). (my kube events call, namespace shop, warnings_only true)\n4. Pod logs (tail 50): the only line is \"payments up\", so the application runs and only the probe fails. (diag-k8s, kube logs pod payments-5bc47dccd9-n6ljs)\n5. NetworkPolicy shop/deny-all, re-checked by me: podSelector {} (all pods in shop), policyTypes [\"Egress\"], no egress rules, label lab/scenario=netpol. Egress is denied for every pod, including DNS on port 53. (my kube get networkpolicy raw, namespace shop; diag-k8s ran the same read)\n6. Deployment payments in shop, revision 1 per diag-k8s: readinessProbe exec nslookup with failureThreshold 2, periodSeconds 10, timeoutSeconds 5. Condition Available False, reason MinimumReplicasUnavailable, 1 unavailable replica. (diag-k8s, kube get deployment raw, namespace shop)\n7. No ImagePull, secret or OOM event for this pod in the namespace events. (diag-k8s, kube events warnings_only, namespace shop; my check agrees)\nFIX (not applied): add an egress allow rule for DNS (UDP and TCP port 53 to the kube-dns pods in kube-system) to the `deny-all` NetworkPolicy in namespace shop, or delete `deny-all` if it is not wanted.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `payments`, running but not ready"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.84,
+          "InputTokens": 1046,
+          "Took": 178530570
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.95,
+          "InputTokens": 1041,
+          "Took": 127996395
+        }
+      },
+      {
+        "Fact": {
+          "Name": "symptom",
+          "Value": "readiness probe `nslookup kubernetes.default.svc.cluster.local` fails (timeout / `can't resolve`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.96,
+          "InputTokens": 1064,
+          "Took": 148376999
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "NetworkPolicy `deny-all` (`podSelector: {}`, `policyTypes: [Egress]`, no egress rule) blocks DNS, 53/UDP to kube-dns"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.91,
+          "InputTokens": 1081,
+          "Took": 142644581
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "allow egress to kube-dns on 53/UDP and 53/TCP, or remove `deny-all`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.91,
+          "InputTokens": 1071,
+          "Took": 112731106
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

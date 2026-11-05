@@ -1,54 +1,57 @@
-# Runbook of the sre team (phase 0)
+# Runbook of the sre team (phase 1, read-only)
 
-Read before the first kubectl call. Every call: `kubectl --context kind-sre-lab <verb> -n <namespace> ...`.
-PersistentVolumes, StorageClasses and Nodes are cluster-scoped: no `-n` for them.
-Allowed verbs: get, describe, logs, events, top, diff. `rollout` is refused: AXLR asks a decision for it,
-and the resumed run's extra turns replace the report. The ReplicaSets show the revisions. Never read Secrets. Change nothing.
+Read before the first cluster call. The cluster is reached only through the `kube` server's tools,
+read-only, as the ServiceAccount `axlr-sre-read`: `discover`, `get`, `describe`, `logs`, `events`,
+`rollout_history`. Call them with `axlr_call_tool` by that exact name: `describe`, never
+`kube/describe` (AXLR rejects the prefixed name as an unknown tool). Every call names its `namespace` (the alert's); for cluster-scoped kinds
+(`node`, `pv`, `storageclass`) pass the alert's namespace too: it is ignored. Secrets are never
+read: a missing one is named in the pod's events and in `describe`. Change nothing.
 
 ## Any alert
 
-get and describe the object the alert names; `get events -n <ns> --sort-by=.lastTimestamp`;
-`logs` (with `--previous` after a restart); then what it depends on: ReplicaSets, PVC and PV,
-NetworkPolicies, HPA and `top pods`, Certificate and Issuer, the Node's conditions and taints.
+`get` and `describe` the object the alert names; `events` of the namespace (Warning first, then
+all with `warnings_only` false when Warnings say little); `logs` of the failing pod (`previous`
+true after a restart); then what it depends on: ReplicaSets, PVC and PV, NetworkPolicies, HPA,
+Certificate and Issuer, the Node's conditions and taints. `get` gives summaries; `raw` true
+gives the whole objects when a field is needed (a command, an image, a limit, a policy's rules).
 
 ## CrashLoopBackOff: what changed
 
-The Deployment keeps one ReplicaSet per revision. Compare them:
+    rollout_history {kind: deployment, name: <name>, namespace: <ns>}        -> revisions and CHANGE-CAUSE
+    get {kind: replicaset, selector: app=<app>, namespace: <ns>, raw: true}   -> each revision's template
 
-    kubectl --context kind-sre-lab get -n <ns> rs -l app=<app> -o custom-columns=NAME:.metadata.name,REVISION:.metadata.annotations.deployment\.kubernetes\.io/revision,CHANGE-CAUSE:.metadata.annotations.kubernetes\.io/change-cause,DESIRED:.spec.replicas,READY:.status.readyReplicas,COMMAND:.spec.template.spec.containers[0].command,IMAGE:.spec.template.spec.containers[0].image
-
+Each ReplicaSet carries its revision in `metadata.annotations["deployment.kubernetes.io/revision"]`.
 Report: which revision introduced the change (its number and change-cause, e.g. revision 2 "release v2"),
-what it changed (command or image, old and new), and that the previous revision ran (its READY was 1
-before it was scaled down; the old ReplicaSet's template is the one that ran).
+what it changed (command or image, old and new), and that the previous revision ran (its template is the
+one that ran before; its replicas were scaled to 0 by the rollout).
 FIX (a write, never run here): roll back to the last revision that ran (`kubectl rollout undo -n <ns> deploy/<name> --to-revision=<n>`)
 or ship what the new revision needs.
 
 ## Volume full
 
-    kubectl --context kind-sre-lab describe -n <ns> pvc <claim>        -> Capacity, Status, Volume, Used By
-    kubectl --context kind-sre-lab describe pv <volume>                -> StorageClass, Capacity, Source, Node Affinity
-    kubectl --context kind-sre-lab describe storageclass <class>       -> Provisioner, AllowVolumeExpansion
+    describe {kind: pvc, name: <claim>, namespace: <ns>}            -> Capacity, Status, Volume, Used By
+    describe {kind: pv, name: <volume>, namespace: <ns>}            -> StorageClass, Capacity, Source
+    describe {kind: storageclass, name: <class>, namespace: <ns>}   -> Provisioner, AllowVolumeExpansion
 
-Report: usage (from the pod's logs or `df`), who writes (the container's command and log lines),
-the PV's name, the StorageClass's name and provisioner, and whether the volume can be expanded:
+Report: usage (from the pod's logs), who writes (the container's command and log lines), the PV's name,
+the StorageClass's name and provisioner, and whether the volume can be expanded:
 provisioner `kubernetes.io/no-provisioner` with AllowVolumeExpansion unset cannot.
 FIX: free space or move to a larger volume; expansion is not possible with such a class.
 
-## Drift
+## HPA at its maximum: where the load comes from
 
-The desired state is the manifests under `desired/` in your workspace, the directory you run in.
-Run exactly, with no `-n`, no stdin and no manifest you wrote or edited (they are complete as they are):
+    describe {kind: hpa, name: <hpa>, namespace: <ns>}                 -> Min/Max replicas, utilisation / target, ScalingLimited
+    logs {pod: <a pod of the scaled workload>, namespace: <ns>, tail: 50}   -> the callers: client IP and user agent
+    get {kind: pod, namespace: <ns>}                                    -> each pod's ip: the client IP's pod
+    describe {kind: deployment, name: <the client's deployment>, namespace: <ns>}   -> its command: what it calls
 
-    kubectl --context kind-sre-lab diff -f desired/
-
-Exit code 1 means differences, not an error (0 none, 2 a real error). Report the command and
-"exit code 1" as one fact, then each field that differs, live (`-` lines) and desired (`+` lines).
-FIX: `kubectl apply -f desired/`.
+Report: current replicas equal to maxReplicas, the CPU utilisation against the target and the request,
+and the source of the load by name: the Deployment whose pod has the client IP, and its command.
+FIX: raise maxReplicas or the CPU request within bounds, or stop the load if it is not legitimate.
 
 ## The report is the last message
 
 Only the last message of a run reaches the operator. Every message that is not a tool call is the
 complete report, `CAUSE:` to `FIX (not applied):`, identical each time. AXLR may add a turn after it:
-a note starting `[AXLR · Jev]` (an independent check doubts the answer) or `[AXLR · memory]` (record
-it in memory). Neither changes the diagnosis: send the report again, not a sentence about the note.
-There is no memory tool in this team.
+a note starting `[AXLR · Jev]` (an independent check doubts the answer) or `[AXLR · memory]`.
+Neither changes the diagnosis: send the report again, not a sentence about the note.

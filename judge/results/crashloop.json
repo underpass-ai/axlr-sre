@@ -1,0 +1,107 @@
+{
+  "Scenario": "crashloop",
+  "Alert": "LabPodCrashLooping",
+  "IncidentID": "inc-90a711c8e3060aeb8381cfb4",
+  "Cycle": 3,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:33:03.674416887+01:00",
+  "SettledAt": "2026-11-05T22:39:24.806759371+01:00",
+  "OpenToSettled": 26616691353,
+  "CostUSD": 0.023681815000000005,
+  "Repeats": 1,
+  "Diagnosis": "CAUSE: Deployment `checkout` in namespace `shop` rolled out revision 2 (change-cause \"release v2\"), and its container command exits 1 with \"FATAL: config file /etc/checkout/config.yaml not found\", so pod `checkout-7f6bb97849-n9wh7` crash-loops.\n\nEVIDENCE:\n- `rollout_history` (deployment checkout, shop): revisions 1 and 2 both have CHANGE-CAUSE \"release v2\". Confirmed by my own `rollout_history` call. (diag-k8s, then my check)\n- `get` raw replicaset selector app=checkout, shop: ReplicaSet `checkout-7f6bb97849` (revision 2, replicas 1) runs `sh -c \"echo checkout v2 starting; echo FATAL: config file /etc/checkout/config.yaml not found \u003e\u00262; exit 1\"`, with no volume or ConfigMap mount for that path. Confirmed by my `describe` of the pod. (diag-k8s)\n- `get` raw replicaset selector app=checkout, shop: ReplicaSet `checkout-658d6f85b4` (revision 1, replicas 0) ran `sh -c \"echo checkout v1 serving; sleep 36000\"` on busybox:1.37 with the same limits. The rollout scaled it to 0. (diag-k8s)\n- `describe` pod checkout-7f6bb97849-n9wh7 (shop): container checkout is Terminated, Reason Error, Exit Code 1, Restart Count 6, Last State exit 1 at 22:36:00 and 22:38:42. Events: Warning BackOff (x8) \"Back-off restarting failed container checkout in pod checkout-7f6bb97849-n9wh7_shop\". Confirmed by my own `describe` call. (diag-k8s, then my check)\n- `logs` (pod checkout-7f6bb97849-n9wh7, container checkout, shop, previous: true): no log lines returned, only \"unable to retrieve container logs for containerd://9c79b0fda37abe24078ad3e067e972212ecdf54b36923091bfd3bc4e0d72d395\". The FATAL line comes from the pod command, not from the logs. (diag-k8s)\n\nFIX (not applied): roll back deployment `checkout` in namespace `shop` to revision 1 with `kubectl rollout undo -n shop deploy/checkout --to-revision=1`, or ship /etc/checkout/config.yaml in revision 2.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `checkout` (its pod `checkout-…`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.97,
+          "InputTokens": 1032,
+          "Took": 159858404
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1023,
+          "Took": 124232959
+        }
+      },
+      {
+        "Fact": {
+          "Name": "state",
+          "Value": "`CrashLoopBackOff`"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.71,
+          "InputTokens": 1029,
+          "Took": 138866303
+        }
+      },
+      {
+        "Fact": {
+          "Name": "exit code",
+          "Value": "`1`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.89,
+          "InputTokens": 1025,
+          "Took": 148031805
+        }
+      },
+      {
+        "Fact": {
+          "Name": "log line",
+          "Value": "`config file /etc/checkout/config.yaml not found`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1036,
+          "Took": 147350846
+        }
+      },
+      {
+        "Fact": {
+          "Name": "what changed",
+          "Value": "revision 2 (`release v2`) changed the command; revision 1 ran"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.92,
+          "InputTokens": 1038,
+          "Took": 137444083
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "roll back to revision 1 (`kubectl rollout undo deploy/checkout`) or ship the config"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.85,
+          "InputTokens": 1048,
+          "Took": 144884163
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

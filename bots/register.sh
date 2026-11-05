@@ -4,18 +4,19 @@
 # never lands in the repo.
 #
 # bots/runbook.md goes into each bot's workspace on this node, where the bot
-# reads it (local_read) before its first kubectl call.
+# reads it (local_read) before its first cluster call.
+#
+# The bots run on the node sre-ro (placement selector role=sre-ro), which
+# nodes/sre-ro/install.sh sets up; its workspaces hold the runbook.
 #
 # Environment:
-#   NODE        the node the bots run on; default: this host's node (gx10-ff95 in the run)
 #   AXLR_BOTS   the CLI; default axlr-bots on the PATH
-#   AXLR_NODE_WORKSPACES   the node's workspaces; default ~/.local/state/axlr-node/workspaces
+#   AXLR_NODE_WORKSPACES   the node's workspaces; default ~/.local/state/axlr-node-sre-ro/workspaces
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 cli="${AXLR_BOTS:-axlr-bots}"
-node="${NODE:-}"
-workspaces="${AXLR_NODE_WORKSPACES:-$HOME/.local/state/axlr-node/workspaces}"
+workspaces="${AXLR_NODE_WORKSPACES:-$HOME/.local/state/axlr-node-sre-ro/workspaces}"
 secret_file="$here/../lab/.secret"
 [ -s "$secret_file" ] || { echo "register.sh: run lab/up.sh first (no lab/.secret)" >&2; exit 1; }
 secret="$(cat "$secret_file")"
@@ -26,9 +27,7 @@ trap 'rm -rf "$work"' EXIT
 for bot in diag-k8s triage; do
   mkdir -p "$workspaces/$bot"
   cp "$here/runbook.md" "$workspaces/$bot/runbook.md"
-  jq --arg secret "$secret" --arg node "$node" '
-      (.triggers[] | select(.type == "alertmanager") | .secret) |= $secret
-      | if $node != "" then .placement.nodes = [$node] else . end' \
+  jq --arg secret "$secret" '(.triggers[] | select(.type == "alertmanager") | .secret) |= $secret' \
     "$here/$bot.json" >"$work/$bot.json"
   if "$cli" bot get "$bot" >/dev/null 2>&1; then
     jq 'del(.id, .tenant, .name, .owner)' "$work/$bot.json" >"$work/$bot.patch.json"

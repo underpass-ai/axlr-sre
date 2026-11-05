@@ -1,0 +1,95 @@
+{
+  "Scenario": "oom",
+  "Alert": "LabPodOOMKilled",
+  "IncidentID": "inc-c7979adf44d26897fe1cad87",
+  "Cycle": 2,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:49:44.705036871+01:00",
+  "SettledAt": "2026-11-05T22:52:45.094919399+01:00",
+  "OpenToSettled": 34391723434,
+  "CostUSD": 0.019796170000000002,
+  "Repeats": 2,
+  "Diagnosis": "CAUSE: Deployment `cart` in namespace `shop` (pod `cart-78d555d5-4cvd7`, container `cart`) is OOM-killed because its only revision sets a 32Mi memory limit while the container's startup command allocates a 60 MiB bytearray.\n\nEVIDENCE:\n1. Pod `cart-78d555d5-4cvd7` (namespace shop): Last State Terminated, Reason OOMKilled, Exit Code 137, Restart Count 4, State CrashLoopBackOff, Limits memory 32Mi, Requests memory 32Mi (diag-k8s, describe pod `cart-78d555d5-4cvd7`; confirmed by my describe pod `cart-78d555d5-4cvd7`, namespace shop).\n2. ReplicaSet `cart-78d555d5` (namespace shop) is owned by Deployment `cart`, annotation deployment.kubernetes.io/revision \"1\", replicas 1, container limit memory 32Mi, and command `bytearray(60 * 1024 * 1024)` (diag-k8s, get replicaset `cart-78d555d5`, raw true; confirmed by my get replicaset `cart-78d555d5`, namespace shop, raw true).\n3. Events show Warning BackOff \"Back-off restarting failed container cart in pod cart-78d555d5-4cvd7_shop\", count 5 (diag-k8s, events, namespace shop, warnings only; my describe pod events show the same BackOff). The same pattern is reported on `cart-78d555d5-qtvxr` (diag-k8s, events, namespace shop).\n4. rollout_history of deployment `cart` (namespace shop) lists only REVISION 1 with CHANGE-CAUSE `\u003cnone\u003e`, so no earlier revision with a different limit exists (my rollout_history deployment `cart`, namespace shop; also diag-k8s).\n5. Logs of the previous container could not be retrieved (\"unable to retrieve container logs for containerd://e1c8295712b0f8c6a51bd91c93bfb8b33f04c8cec67ed54f20d77cf484a1b4a9\"), so the \"cache loaded\" line is unconfirmed (diag-k8s, logs pod `cart-78d555d5-4cvd7`, namespace shop, previous true, container cart).\n\nFIX (not applied): Raise the memory limit and request of container `cart` in deployment `cart`, namespace `shop`, to above the 60 MiB allocation plus interpreter overhead (for example 128Mi), or shrink the cache allocation in the command.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `cart` (container `cart`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.93,
+          "InputTokens": 1045,
+          "Took": 234342431
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1039,
+          "Took": 128526498
+        }
+      },
+      {
+        "Fact": {
+          "Name": "reason",
+          "Value": "`OOMKilled` (exit code 137), restarting"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.94,
+          "InputTokens": 1050,
+          "Took": 131472538
+        }
+      },
+      {
+        "Fact": {
+          "Name": "limit",
+          "Value": "`limits.memory: 32Mi`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1045,
+          "Took": 132489896
+        }
+      },
+      {
+        "Fact": {
+          "Name": "demand",
+          "Value": "the process loads a 60 MiB cache (log `loading 60 MiB cache`), more than the limit"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.75,
+          "InputTokens": 1064,
+          "Took": 132290328
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "raise `limits.memory` above the demand (for example 64Mi–128Mi) or shrink the cache"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.89,
+          "InputTokens": 1068,
+          "Took": 119122922
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

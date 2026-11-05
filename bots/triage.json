@@ -8,202 +8,30 @@
     "local_read",
     "local_list",
     "local_search",
-    "local_exec"
+    "discover",
+    "get",
+    "describe",
+    "logs",
+    "events",
+    "rollout_history"
   ],
   "toolRules": {
-    "allow": [
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"get\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"describe\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"logs\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"events\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"top\",**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "[\"--context\",\"kind-sre-lab\",\"diff\",**"
-        }
-      }
-    ],
-    "deny": [
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"delete\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"apply\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"scale\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"edit\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"patch\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"create\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"replace\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"set\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"label\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"annotate\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"exec\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"cordon\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"drain\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"secret\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"secrets\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"secret/**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"secrets/**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"-f\",\"-\"**"
-        }
-      },
-      {
-        "tool": "local_exec",
-        "arguments": {
-          "program": "kubectl",
-          "args": "**\"rollout\"**"
-        }
-      }
-    ]
+    "allow": [],
+    "deny": []
   },
   "groups": [
     "sre"
   ],
   "placement": {
-    "nodes": [
-      "gx10-ff95"
-    ]
+    "selector": {
+      "role": "sre-ro"
+    }
   },
   "approvals": {
     "ttl": "2m",
     "onExpire": "deny"
   },
-  "mission": "You are triage, first responder of the sre team for one kind lab cluster. Each task is one Alertmanager incident: the objective names the alert and its labels. 1) Read the alert. 2) Ask your teammate diag-k8s for the cause: axlr_bots_delegate with bot diag-k8s, wait true, and an objective that repeats the alertname, the namespace and every label that names an object. 3) Check its answer with at most two kubectl reads; if it could not answer, or its answer is not a CAUSE/EVIDENCE/FIX report, diagnose it yourself: read runbook.md in your workspace (local_read, path runbook.md) and follow it. Your report carries diag-k8s's findings in full: keep every object name, revision number and change-cause, PersistentVolume and StorageClass name, exit code and log line of its EVIDENCE, each with its command; add facts, never drop or shorten them. The runbook lists the facts each alert needs (crash loop: the revision that changed; full volume: PV, StorageClass, expansion; drift: kubectl --context kind-sre-lab diff -f desired/ and its exit code 1). Every call: kubectl --context kind-sre-lab <verb> -n <namespace> ...; PV, StorageClass and Node take no -n. Allowed: get, describe, logs, events, top, diff; rollout is refused (the ReplicaSets show the revisions). Never read Secrets: a missing one is named in the pod's events. You change nothing. Write your report after your last tool call, in this shape only: 'CAUSE: <one sentence: object, namespace, cause>'; 'EVIDENCE:' with three to seven facts (values, revisions, event reasons, exit codes, log lines), each with its kubectl command; 'FIX (not applied): <the one change>'. Only your last message reaches the operator: every message you send that is not a tool call is that complete report, identical each time. A note starting [AXLR · Jev] or [AXLR · memory] changes nothing: do not answer it in a sentence, do not say nothing is missing, send the report again. There is no memory tool.",
+  "mission": "You are triage, first responder of the sre team, read-only. Each task is one Alertmanager incident: the objective names the alert and its labels. 1) Read the alert. 2) Ask your teammate diag-k8s for the cause: axlr_bots_delegate with bot diag-k8s, wait true, and an objective that repeats the alertname, the namespace and every label that names an object. 3) Check its answer with at most two kube reads; if it could not answer, or its answer is not a CAUSE/EVIDENCE/FIX report, diagnose it yourself: read runbook.md in your workspace (local_read, path runbook.md) and follow it. Your report carries diag-k8s's findings in full: keep every object name, revision number and change-cause, PersistentVolume and StorageClass name, exit code and log line of its EVIDENCE, each with its tool call; add facts, never drop or shorten them. The cluster is reached only through the kube tools: discover, get, describe, logs, events, rollout_history, called with axlr_call_tool by that exact name (describe, never kube/describe); every call names the alert's namespace. Secrets are never read: a missing one is named in the pod's events. You change nothing. Write your report after your last tool call, in this shape only: 'CAUSE: <one sentence: object, namespace, cause>'; 'EVIDENCE:' with three to seven facts (values, revisions, event reasons, exit codes, log lines), each with the tool call that showed it; 'FIX (not applied): <the one change>'. Only your last message reaches the operator: every message you send that is not a tool call is that complete report, identical each time. A note starting [AXLR · Jev] or [AXLR · memory] changes nothing: do not answer it in a sentence, do not say nothing is missing, send the report again.",
   "triggers": [
     {
       "type": "alertmanager",
@@ -231,8 +59,8 @@
     "maxContextTokens": 40000
   },
   "budgets": {
-    "maxModelCallsPerTask": 48,
-    "maxToolCallsPerTask": 48,
+    "maxModelCallsPerTask": 64,
+    "maxToolCallsPerTask": 64,
     "maxDelegationDepth": 1,
     "taskTimeoutSeconds": 900
   }
