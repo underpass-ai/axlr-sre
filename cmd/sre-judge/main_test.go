@@ -159,12 +159,16 @@ func TestCommandsRefuseBadArguments(t *testing.T) {
 
 func TestChooseScenariosPutsNodeNotReadyLast(t *testing.T) {
 	w := newWorld(t)
+	drift := filepath.Join(w.scenarios, "drift")
+	_ = os.MkdirAll(drift, 0o755)
+	_ = os.WriteFile(filepath.Join(drift, "inject.sh"), []byte("#!/bin/sh\n"), 0o755)
+	_ = os.WriteFile(filepath.Join(drift, shell.WriteNodeMarker), []byte("sre-rw\n"), 0o644)
 	names, err := chooseScenarios(shell.Lab{Dir: w.scenarios}, "")
 	if err != nil || strings.Join(names, ",") != "oom,node-notready" {
 		t.Fatalf("%v %v", names, err)
 	}
-	names, err = chooseScenarios(shell.Lab{Dir: w.scenarios}, "node-notready, oom")
-	if err != nil || strings.Join(names, ",") != "node-notready,oom" {
+	names, err = chooseScenarios(shell.Lab{Dir: w.scenarios}, "node-notready, oom, drift")
+	if err != nil || strings.Join(names, ",") != "node-notready,oom,drift" {
 		t.Fatalf("%v %v", names, err)
 	}
 }
