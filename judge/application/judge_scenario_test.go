@@ -24,6 +24,11 @@ type world struct {
 	clock *fakeClock
 	judge *fakeJudge
 	uc    JudgeScenario
+	// afterSettle, for a write-node scenario, is the incident once the fix
+	// phase ended, a poll after it settled; withoutFixTask settles it with
+	// no fix task launched.
+	afterSettle    func(domain.Incident) domain.Incident
+	withoutFixTask bool
 }
 
 func newWorld() *world {
@@ -54,8 +59,18 @@ func (w *world) opens(id string, cycle int, status string) {
 		if polls == 1 {
 			w.cp.event(domain.EventIncidentRepeated, id, w.clock.Now())
 		}
+		if polls == 3 && w.afterSettle != nil {
+			current, _ := w.cp.Incident(context.Background(), id)
+			w.cp.set(w.afterSettle(current))
+		}
 		if polls == 2 {
-			w.cp.set(domain.Incident{ID: id, GroupKey: groupKey("LabPodOOMKilled"), Status: status, Cycle: cycle, Repeats: 1, CostUSD: 0.005, Diagnosis: "cart is OOMKilled at 32Mi", TaskIDs: []string{"t1"}, OpenedAt: t0.Add(2 * time.Second)})
+			incident := domain.Incident{ID: id, GroupKey: groupKey("LabPodOOMKilled"), Status: status, Cycle: cycle, Repeats: 1, CostUSD: 0.005, Diagnosis: "cart is OOMKilled at 32Mi", TaskIDs: []string{"t1"}, OpenedAt: t0.Add(2 * time.Second)}
+			incident.Tasks = []domain.IncidentTask{{TaskID: "t1", BotID: "triage", Phase: domain.PhaseTriage, Cycle: cycle}}
+			if w.afterSettle != nil && !w.withoutFixTask && status == domain.IncidentDiagnosed {
+				incident.TaskIDs = append(incident.TaskIDs, "task-fix")
+				incident.Tasks = append(incident.Tasks, domain.IncidentTask{TaskID: "task-fix", BotID: "fix", Phase: domain.PhaseFix, Cycle: cycle})
+			}
+			w.cp.set(incident)
 			settled := domain.EventIncidentDiagnosed
 			if status == domain.IncidentEscalated {
 				settled = domain.EventIncidentEscalated

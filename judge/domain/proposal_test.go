@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
@@ -19,15 +18,6 @@ func TestProposalCompletesOnlyWithAnAnswer(t *testing.T) {
 	for status, ended := range map[string]bool{TaskCompleted: true, TaskFailed: true, TaskExpired: true, TaskCancelled: true, "Running": false, "WaitingApproval": false} {
 		if TaskEnded(status) != ended {
 			t.Fatalf("%s: %v", status, !ended)
-		}
-	}
-}
-
-func TestFixObjectiveCarriesTheIncidentAndTheDiagnosis(t *testing.T) {
-	objective := FixObjective(Incident{ID: "inc-7", GroupKey: `{}:{alertname="LabDeploymentDrift"}`, Diagnosis: "  CAUSE: drift  "})
-	for _, want := range []string{"Incident inc-7 (alert LabDeploymentDrift)", "\n\nCAUSE: drift\n\n", "apply nothing"} {
-		if !strings.Contains(objective, want) {
-			t.Fatalf("missing %q in %q", want, objective)
 		}
 	}
 }

@@ -23,8 +23,9 @@ type Result struct {
 	SettledAt   time.Time
 	// OpenToSettled comes from the bot's timeline, not from polling.
 	OpenToSettled time.Duration
-	// CostUSD is the incident's cost with its delegated children added,
-	// and the proposal's for a write-node scenario.
+	// CostUSD is the incident's cost with its delegated children added;
+	// for a write-node scenario, read once the fix phase ended, so it
+	// holds the fix task's too.
 	CostUSD   float64
 	Repeats   int
 	Diagnosis string
@@ -54,7 +55,7 @@ func (r Result) Fired() bool { return r.IncidentID != "" }
 // write-node scenario; a scenario without a diagnosis, or without a
 // proposal when it needs one, is wrong.
 func (r Result) Outcome() Outcome {
-	if r.Error != "" || r.Status != IncidentDiagnosed {
+	if r.Error != "" || !HasDiagnosis(r.Status) {
 		return Wrong
 	}
 	if r.WriteNode && (r.Proposal == nil || !r.Proposal.Completed()) {
