@@ -138,8 +138,8 @@ func TestJudgeScenarioScoresTheFixPhasesProposalOnTheWriteNode(t *testing.T) {
 	if !result.WriteNode || result.Proposal == nil || result.Proposal.Answer != "PROPOSAL: raise the limit; ROLLBACK: 32Mi" || result.Status != domain.IncidentProposed || result.Outcome() != domain.Correct {
 		t.Fatalf("%+v", result)
 	}
-	// triage 0.005 and fix 0.003 from the incident, the child c1 0.002.
-	if result.CostUSD < 0.0099 || result.CostUSD > 0.0101 {
+	// triage 0.005 and fix 0.003, children included, from the incident.
+	if result.CostUSD < 0.0079 || result.CostUSD > 0.0081 {
 		t.Fatalf("the incident's cost holds the fix task's: %v", result.CostUSD)
 	}
 	if !strings.Contains(w.judge.asked[0].State, "PROPOSAL: raise the limit") {
@@ -163,6 +163,22 @@ func TestJudgeScenarioFailsAWriteNodeScenarioWithoutAProposal(t *testing.T) {
 	w.opens("inc-2", 1, domain.IncidentDiagnosed)
 	result, _ = w.uc.Run(context.Background(), "oom", false)
 	if !strings.Contains(result.Error, "fix: the control plane launched no fix task") || result.Outcome() != domain.Wrong {
+		t.Fatalf("%+v", result)
+	}
+
+	// The incident cannot be read during the fix phase: the error says so
+	// and the cost stays the one read when it settled.
+	w = writeWorld("x", domain.IncidentProposed)
+	w.opens("inc-4", 1, domain.IncidentDiagnosed)
+	settle, polls := w.clock.onSleep, 0
+	w.clock.onSleep = func() {
+		settle()
+		if polls++; polls == 3 {
+			w.cp.incidents = nil
+		}
+	}
+	result, _ = w.uc.Run(context.Background(), "oom", false)
+	if !strings.Contains(result.Error, "fix: no incident inc-4") || result.CostUSD != 0.005 {
 		t.Fatalf("%+v", result)
 	}
 

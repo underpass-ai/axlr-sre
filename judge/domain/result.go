@@ -23,9 +23,10 @@ type Result struct {
 	SettledAt   time.Time
 	// OpenToSettled comes from the bot's timeline, not from polling.
 	OpenToSettled time.Duration
-	// CostUSD is the incident's cost with its delegated children added;
-	// for a write-node scenario, read once the fix phase ended, so it
-	// holds the fix task's too.
+	// CostUSD is what the incident cost in this scenario's cycle: its
+	// costUsd past what it was before the injection. axlr-bots counts the
+	// delegated children in it; for a write-node scenario it is read once
+	// the fix phase ended, so it holds the fix task's too.
 	CostUSD   float64
 	Repeats   int
 	Diagnosis string
