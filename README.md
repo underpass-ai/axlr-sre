@@ -299,7 +299,7 @@ What changed: a third node, [sre-rw](nodes/sre-rw/README.md), runs [fix](bots/fi
 | proposal (not applied) | apply `desired/deployment.yaml` to `drift-lab` (`kubectl apply -f desired/deployment.yaml`) | yes | 0.70 |
 | rollback | restore the live state recorded before the apply: 3 replicas and image `nginx:1.26-alpine` | yes | 0.66 |
 
-`fix` read the runbook and `desired/`, listed the server's tools, called `diff` and `get` with `raw`, and answered in 15 s for $0.003; no call waited for a person. It also noted that `rollout undo` would not restore the live state (the previous ReplicaSet carries 1.27), so the rollback is a scale and a `set image`.
+`fix` read the runbook and `desired/`, listed the server's tools, called `diff` and `get` with `raw`, and answered in 15 s for $0.003; no call waited for a person. It also noted that `rollout undo` would not restore the live state (the previous ReplicaSet carries 1.27), so the rollback is a scale and a `set image`. Its `CAUSE` line corrects itself mid-sentence ("runs `nginx:1.27-alpine`... no, it runs `nginx:1.26-alpine`"): the facts are right, but a retraction in an operator's report is a quality signal to watch, in the same bucket as Jev's near coins.
 
 ### Run 1, 07:28–07:31 UTC
 
