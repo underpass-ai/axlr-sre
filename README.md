@@ -2,7 +2,7 @@
 
 A brigade of bots that resolves Kubernetes and cloud incidents on [AXLR Bots](https://github.com/underpass-ai/axlr-bots): it receives the alert, diagnoses with evidence, proposes the fix as a diff, applies it when a person approves, verifies and writes the postmortem. The model proposes; the policy and the person decide; the panel shows everything.
 
-**Status:** phase 1 started. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)). **Phase 1, 5 November:** the bots run on the read-only node `sre-ro` through `kube-mcp`; 8 / 9 correct in each of two runs, 0 duplicates, the read node's goal cleared ([the runs](#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). Next: the write node `sre-rw` and `fix` in `propose`, starting with drift.
+**Status:** phase 1 started. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios, the two read-only bots and `fix` run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)). **Phase 1, 5 November:** the bots run on the read-only node `sre-ro` through `kube-mcp`; 8 / 9 correct in each of two runs, 0 duplicates, the read node's goal cleared ([the runs](#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). **6 November:** the write node `sre-rw` and `fix` in `propose`; on drift `fix` proves the change with a server-side `diff` and proposes it with its rollback, 7 / 7 ([the runs](#judged-runs-6-november-2026-drift-on-the-write-node-phase-1)). Next: the fix phase in axlr-bots (Diagnosed → Proposed) and the other scenarios' proposals.
 
 ```text
 Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident ──▶ triage ──▶ diag-k8s / diag-cloud ──▶ fix (approval) ──▶ verify ──▶ scribe
@@ -271,6 +271,49 @@ $0.119 for run 1 and $0.194 for run 2, against $0.093 for phase 0's ten: about $
 | The model first calls `kube/describe`, `kube/events`, `kube/logs` | AXLR rejects a prefixed name as an unknown plugin tool: three calls lost in the smoke run before it tried `describe` | the missions and the runbook say to call each tool by its exact name |
 | `kubectl diff` is not a read for RBAC | drift cannot be diagnosed on `sre-ro` | drift belongs to `sre-rw` and `fix`; `sre-judge` leaves it out by default, `--only drift` still runs it |
 | phase 0's goals are fixed at 10 scenarios | a nine-scenario run printed `passes false` | the read node's goal: nine fire, eight correct |
+
+## Judged runs, 6 November 2026: drift on the write node (phase 1)
+
+What changed: a third node, [sre-rw](nodes/sre-rw/README.md), runs [fix](bots/fix.json) at level `propose` with kube-mcp's reads and `diff` as the ServiceAccount `axlr-sre-write` (branch `sre-rw`). Triage still diagnoses drift on `sre-ro`, comparing the live object with `desired/` by hand. The control plane does not launch the fix phase yet (design §4), so `sre-judge` does: once the incident is `Diagnosed` it submits a `fix` task with triage's diagnosis, and Jev judges `fix`'s answer against [expected.md](scenarios/drift/expected.md), whose rows now include the diff's evidence, the proposal and the rollback. `judge/run.sh --only drift`, twice; the read node's run 2 above stays as committed, and `sre-judge report` judges each node's results against its own goals.
+
+**Run 2 is correct, 7 / 7, and clears the write node's goal** (`WriteNode`: drift fires, the proposal states every fact). Run 1 was partly correct: the proposal did not say where its diff came from.
+
+### Run 2, 07:32–07:35 UTC: the bots as committed
+
+| Measure | Result | Write node goal |
+|---|---|---|
+| scenarios that fired their alert and opened one incident | 1 / 1 | 1 / 1 |
+| proposals Jev found stated in full (partly) | 1 / 1 (0) | 1 / 1 |
+| duplicate incidents | 0 | 0 |
+| Open → Diagnosed | 29 s | < 3m0s |
+| cost, children and fix included | $0.031 | < $1 |
+| passes | true | |
+
+| Fact | Expected | Jev | p |
+|---|---|---|---|
+| object | Deployment `web` | yes | 0.88 |
+| namespace | `drift-lab` | yes | 1.00 |
+| field 1 | `spec.replicas`: live `3`, desired `2` | yes | 0.95 |
+| field 2 | image: live `nginx:1.26-alpine`, desired `nginx:1.27-alpine` | yes | 0.89 |
+| evidence | the `diff` tool on `desired/deployment.yaml` answered `differences: true` (a server-side dry run; nothing changed) | yes | 0.98 |
+| proposal (not applied) | apply `desired/deployment.yaml` to `drift-lab` (`kubectl apply -f desired/deployment.yaml`) | yes | 0.70 |
+| rollback | restore the live state recorded before the apply: 3 replicas and image `nginx:1.26-alpine` | yes | 0.66 |
+
+`fix` read the runbook and `desired/`, listed the server's tools, called `diff` and `get` with `raw`, and answered in 15 s for $0.003; no call waited for a person. It also noted that `rollout undo` would not restore the live state (the previous ReplicaSet carries 1.27), so the rollback is a scale and a `set image`.
+
+### Run 1, 07:28–07:31 UTC
+
+6 / 7, *partly*: the proposal listed the two fields, the apply and the rollback, and `diff` had run, but the report never said the fields came from it; Jev said *missing* for the evidence with p 0.61. That is the difference between a server's dry run and a comparison by hand, which an operator needs to know: in the first smoke run `diff` had failed and `fix` compared by hand. The runbook and the mission now ask the `DIFF` line to say its source first.
+
+### What did not fit
+
+| Finding | Effect | What we did |
+|---|---|---|
+| AXLR starts an MCP server with the `mcp.json` entry's environment alone, without `PATH` | every `diff` failed with `executable file not found in $PATH`: `kubectl diff` runs the `diff` program | the nodes' `mcp.json` gives kube-mcp a `PATH` |
+| without `HOME`, kubectl keeps its discovery cache under the working directory | a `.kube/` directory in every bot's workspace | `KUBECACHEDIR` in the node's state |
+| kube-mcp's `diff` refuses a `Namespace` in the manifest | the 29 October desired state, which starts with one, cannot be diffed | the scenario carries the Deployment alone, and its namespace stays across runs with sre-rw's RoleBinding |
+| the drift example moved from axlr-bots to the private axlr-bots-examples | `inject.sh` read a path that no longer exists | `scenarios/drift/desired/` |
+| the proposal is the judge's to launch | no `Proposed` state, no proposal in the incident or the panel | the fix phase belongs to axlr-bots (design §4) |
 
 ## License
 

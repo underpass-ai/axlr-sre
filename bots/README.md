@@ -23,7 +23,7 @@ Alertmanager ──▶ trigger alerts ──▶ incident + task of triage ──
 | delegation | `triage` → `diag-k8s`, `maxDepth` 1, `split: even`, `maxChildren` 2, `budgetShare` 0.5 |
 | budgets | `triage` 64 model / 64 tool calls, 900 s; a child gets a quarter of that (16 / 16). Phase 0 had 48 (12 for a child); an MCP tool costs one more call than `local_exec`, since the model lists the server's tools with `axlr_tools` first, and on 5 November hpa-maxed's child ran out at 12 |
 | budgets of `fix` | 24 model / 24 tool calls, 600 s |
-| model | `anthropic/claude-haiku-5.5`, `cost-optimized`, through OpenRouter; `fix` too, though design §6 gives it the strong model: on drift the cheap one proposed the expected change |
+| model | `anthropic/claude-haiku-5.5`, `cost-optimized`, through OpenRouter; `fix` too, though design §6 gives it the strong model: on drift the cheap one proposed the expected change (7 / 7 on 6 November) |
 | placement | `{"selector": {"role": "sre-ro"}}`: the node sre-ro, dedicated; `fix` `{"role": "sre-rw"}` |
 | approvals | none expected: every allowed tool is a read, and `diff` is a dry run that `propose` lets through as an allow-listed MCP tool; a held call waits `2m`, then is denied |
 
