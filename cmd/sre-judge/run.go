@@ -30,8 +30,7 @@ func runCommand(ctx context.Context, args []string) error {
 	bot := flags.String("bot", "triage", "the bot whose timeline holds the incident events")
 	timeout := flags.Duration("timeout", 15*time.Minute, "how long an incident may stay Open")
 	poll := flags.Duration("poll", 5*time.Second, "how often the incidents are read")
-	fixBot := flags.String("fix-bot", "fix", "the bot that proposes the fix of a write-node scenario")
-	fixTimeout := flags.Duration("fix-timeout", 10*time.Minute, "how long the fix task may take")
+	fixTimeout := flags.Duration("fix-timeout", 10*time.Minute, "how long a write-node scenario's incident may stay Diagnosed: the fix phase the control plane launches")
 	soak := flags.String("soak", "", "a scenario left firing after its diagnosis, to count the resends")
 	soakFor := flags.Duration("soak-for", 0, "how long the soaked scenario stays firing after its diagnosis")
 	if err := flags.Parse(args); err != nil {
@@ -55,7 +54,7 @@ func runCommand(ctx context.Context, args []string) error {
 		Lab: lab, ControlPlane: cp, Clock: clock,
 		Score:    application.ScoreDiagnosis{Judge: judge},
 		Cost:     application.IncidentCost{ControlPlane: cp},
-		Propose:  application.ProposeFix{ControlPlane: cp, Clock: clock, Bot: *fixBot, Timeout: *fixTimeout, Poll: *poll},
+		Propose:  application.AwaitProposal{ControlPlane: cp, Clock: clock, Timeout: *fixTimeout, Poll: *poll},
 		Settings: application.Settings{Tenant: *tenant, Bot: *bot, Timeout: *timeout, Poll: *poll, EventLimit: 1000},
 	}
 	store := results.Store{Dir: c.out}

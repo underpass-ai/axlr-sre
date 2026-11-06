@@ -4,7 +4,6 @@
 package controlplane
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -49,21 +48,32 @@ func NewClient(socket string, timeout time.Duration) *Client {
 }
 
 type incidentWire struct {
-	ID        string    `json:"id"`
-	GroupKey  string    `json:"groupKey"`
-	Status    string    `json:"status"`
-	Cycle     int       `json:"cycle"`
-	Repeats   int       `json:"repeats"`
-	CostUSD   float64   `json:"costUsd"`
-	Diagnosis string    `json:"diagnosis"`
-	TaskIDs   []string  `json:"taskIds"`
+	ID        string   `json:"id"`
+	GroupKey  string   `json:"groupKey"`
+	Status    string   `json:"status"`
+	Cycle     int      `json:"cycle"`
+	Repeats   int      `json:"repeats"`
+	CostUSD   float64  `json:"costUsd"`
+	Diagnosis string   `json:"diagnosis"`
+	Proposal  string   `json:"proposal"`
+	TaskIDs   []string `json:"taskIds"`
+	Tasks     []struct {
+		TaskID string `json:"taskId"`
+		BotID  string `json:"botId"`
+		Phase  string `json:"phase"`
+		Cycle  int    `json:"cycle"`
+	} `json:"tasks"`
 	OpenedAt  time.Time `json:"openedAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 func (w incidentWire) incident() domain.Incident {
-	return domain.Incident{ID: w.ID, GroupKey: w.GroupKey, Status: w.Status, Cycle: w.Cycle, Repeats: w.Repeats,
-		CostUSD: w.CostUSD, Diagnosis: w.Diagnosis, TaskIDs: w.TaskIDs, OpenedAt: w.OpenedAt, UpdatedAt: w.UpdatedAt}
+	incident := domain.Incident{ID: w.ID, GroupKey: w.GroupKey, Status: w.Status, Cycle: w.Cycle, Repeats: w.Repeats,
+		CostUSD: w.CostUSD, Diagnosis: w.Diagnosis, Proposal: w.Proposal, TaskIDs: w.TaskIDs, OpenedAt: w.OpenedAt, UpdatedAt: w.UpdatedAt}
+	for _, t := range w.Tasks {
+		incident.Tasks = append(incident.Tasks, domain.IncidentTask{TaskID: t.TaskID, BotID: t.BotID, Phase: t.Phase, Cycle: t.Cycle})
+	}
+	return incident
 }
 
 // Incidents lists the tenant's incidents (the API's newest-first page of
@@ -113,15 +123,16 @@ func (c *Client) Events(ctx context.Context, bot string, limit int) (domain.Time
 // Task reads one task.
 func (c *Client) Task(ctx context.Context, id string) (domain.Task, error) {
 	var wire struct {
-		ID           string   `json:"id"`
-		Status       string   `json:"status"`
-		Children     []string `json:"children"`
-		ExecutionIDs []string `json:"executionIds"`
+		ID           string    `json:"id"`
+		Status       string    `json:"status"`
+		Children     []string  `json:"children"`
+		ExecutionIDs []string  `json:"executionIds"`
+		CreatedAt    time.Time `json:"createdAt"`
 	}
 	if err := c.get(ctx, "/v1/tasks/"+url.PathEscape(id), &wire); err != nil {
 		return domain.Task{}, err
 	}
-	return domain.Task{ID: wire.ID, Status: wire.Status, Children: wire.Children, ExecutionIDs: wire.ExecutionIDs}, nil
+	return domain.Task{ID: wire.ID, Status: wire.Status, Children: wire.Children, ExecutionIDs: wire.ExecutionIDs, CreatedAt: wire.CreatedAt}, nil
 }
 
 // Executions reads a task's executions with what each cost and answered.
@@ -143,28 +154,6 @@ func (c *Client) Executions(ctx context.Context, taskID string) ([]domain.Execut
 		executions = append(executions, domain.Execution{ID: w.ID, CostUSD: w.Usage.CostUSD, Answer: w.Result.Answer})
 	}
 	return executions, nil
-}
-
-// SubmitTask gives the bot a task under an idempotency key: the same key
-// answers the task it made before.
-func (c *Client) SubmitTask(ctx context.Context, bot, objective, key string) (string, error) {
-	body, err := json.Marshal(map[string]string{"objective": objective, "idempotencyKey": key})
-	if err != nil {
-		return "", err
-	}
-	var wire struct {
-		Task struct {
-			ID string `json:"id"`
-		} `json:"task"`
-	}
-	path := "/v1/bots/" + url.PathEscape(bot) + "/tasks"
-	if err := c.do(ctx, http.MethodPost, path, bytes.NewReader(body), &wire); err != nil {
-		return "", err
-	}
-	if wire.Task.ID == "" {
-		return "", errors.New("control plane answered no task id for " + path)
-	}
-	return wire.Task.ID, nil
 }
 
 func (c *Client) get(ctx context.Context, path string, into any) error {

@@ -64,25 +64,6 @@ type fakeControlPlane struct {
 	tasks      map[string]domain.Task
 	executions map[string][]domain.Execution
 	fail       map[string]error
-	// submitted records each task asked for; onSubmit answers its id.
-	submitted []submission
-	onSubmit  func(submission) string
-}
-
-type submission struct{ bot, objective, key string }
-
-func (cp *fakeControlPlane) SubmitTask(_ context.Context, bot, objective, key string) (string, error) {
-	cp.mu.Lock()
-	defer cp.mu.Unlock()
-	if err := cp.fail["submit"]; err != nil {
-		return "", err
-	}
-	s := submission{bot: bot, objective: objective, key: key}
-	cp.submitted = append(cp.submitted, s)
-	if cp.onSubmit != nil {
-		return cp.onSubmit(s), nil
-	}
-	return "task-fix", nil
 }
 
 func (cp *fakeControlPlane) setTask(task domain.Task) {

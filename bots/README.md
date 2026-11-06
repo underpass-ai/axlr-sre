@@ -6,15 +6,15 @@ Three bots of the team `sre`, tenant `ops`. `triage` and `diag-k8s`, level `obse
 Alertmanager ──▶ trigger alerts ──▶ incident + task of triage ──axlr_bots_delegate (wait)──▶ diag-k8s
                                                  ▲                                              │
                                                  └──────────── cause + evidence ◀───────────────┘
-                                    Diagnosed ──▶ task of fix (sre-rw): diff, rollback ──▶ proposal
-                                    (submitted by sre-judge until the control plane launches the fix phase, design §4)
+                                    Diagnosed ──▶ task of fix (sre-rw): diff, rollback ──▶ Proposed
+                                    (the control plane launches the fix phase, design §4: fix declares it)
 ```
 
 | Bot | Trigger | Does |
 |---|---|---|
 | [triage](triage.json) | `alertmanager` `alerts` (and `manual`) | reads the alert, delegates to `diag-k8s`, checks its answer, reports `CAUSE` / `EVIDENCE` / `FIX (not applied)` |
 | [diag-k8s](diag-k8s.json) | `delegation` (and `manual`) | `get`, `describe`, `events`, `logs`, `rollout_history`; says the cause with evidence |
-| [fix](fix.json) | `manual` | reads [fix-runbook.md](fix-runbook.md), runs `diff` of `desired/`, records the live values; reports `CAUSE` / `DIFF` / `PROPOSAL (not applied)` / `ROLLBACK` / `CHECK` |
+| [fix](fix.json) | `incident` with `phase: fix` (a diagnosed incident of the team), `manual` | reads [fix-runbook.md](fix-runbook.md), runs `diff` of `desired/`, records the live values; reports `CAUSE` / `DIFF` / `PROPOSAL (not applied)` / `ROLLBACK` / `CHECK` |
 
 `triage` and `diag-k8s` read [runbook.md](runbook.md) from their workspace before the first cluster call, `fix` reads [fix-runbook.md](fix-runbook.md) (`register.sh` copies each there as `runbook.md`): the reads each alert needs, as tool calls, and the facts the report must carry. Every message a bot sends that is not a tool call is its whole report: the execution's answer is the last message, and AXLR's Jev final check can add a turn after it. A mission is at most 2000 bytes, which is why the detail lives in the runbook.
 

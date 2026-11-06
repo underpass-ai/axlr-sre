@@ -21,15 +21,15 @@ type Settings struct {
 }
 
 // JudgeScenario injects one scenario, waits for its incident to leave
-// Open, judges the diagnosis (or, for a write-node scenario, the fix bot's
-// proposal) and clears the fault.
+// Open, judges the diagnosis (or, for a write-node scenario, the proposal
+// of the fix phase the control plane launched) and clears the fault.
 type JudgeScenario struct {
 	Lab          Lab
 	ControlPlane ControlPlane
 	Clock        Clock
 	Score        ScoreDiagnosis
 	Cost         IncidentCost
-	Propose      ProposeFix
+	Propose      AwaitProposal
 	Settings     Settings
 }
 
@@ -142,24 +142,25 @@ func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, i
 	if err := uc.count(ctx, expected.Alert, incident, result); err != nil {
 		return err
 	}
-	cost, err := uc.Cost.Of(ctx, incident)
-	if err != nil {
+	if err := uc.cost(ctx, incident, result); err != nil {
 		return err
 	}
-	result.CostUSD = cost
-	if incident.Status != domain.IncidentDiagnosed {
+	if !domain.HasDiagnosis(incident.Status) {
 		return nil
 	}
 	judged := incident.Diagnosis
 	if result.WriteNode {
-		proposal, err := uc.Propose.Run(ctx, incident)
-		result.Proposal = &proposal
-		result.CostUSD += proposal.CostUSD
+		proposal, final, err := uc.Propose.Run(ctx, incident)
+		result.Proposal, result.Status = &proposal, final.Status
+		// The incident's cost now holds the fix task's too.
+		if costErr := uc.cost(ctx, final, result); costErr != nil && err == nil {
+			err = costErr
+		}
 		if err != nil {
 			return fmt.Errorf("fix: %w", err)
 		}
 		if !proposal.Completed() {
-			return fmt.Errorf("fix task %s ended %s without a proposal", proposal.TaskID, proposal.Status)
+			return fmt.Errorf("fix task %s ended %s without a proposal (incident %s)", proposal.TaskID, proposal.Status, final.Status)
 		}
 		judged = proposal.Answer
 	}
@@ -168,6 +169,16 @@ func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, i
 		return err
 	}
 	result.Score = score
+	return nil
+}
+
+// cost is the incident's cost with its triage task's delegated children.
+func (uc JudgeScenario) cost(ctx context.Context, incident domain.Incident, result *domain.Result) error {
+	cost, err := uc.Cost.Of(ctx, incident)
+	if err != nil {
+		return err
+	}
+	result.CostUSD = cost
 	return nil
 }
 

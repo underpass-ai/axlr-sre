@@ -23,9 +23,11 @@ func TaskEnded(status string) bool {
 }
 
 // Proposal is what the fix bot answered for an incident of a write-node
-// scenario: the task the judge submitted with triage's diagnosis, how it
-// ended, its answer and what it cost. The control plane does not launch
-// the fix phase yet (design §4), so the judge stands in for it.
+// scenario: the fix task the control plane launched once triage
+// diagnosed it (design §4), how it ended, its answer (the incident's
+// proposal) and what it cost. SubmittedAt is when the control plane
+// created the task, EndedAt when the judge saw the incident leave
+// Diagnosed.
 type Proposal struct {
 	TaskID      string
 	Status      string
@@ -46,12 +48,4 @@ func (p Proposal) Took() time.Duration {
 		return 0
 	}
 	return p.EndedAt.Sub(p.SubmittedAt)
-}
-
-// FixObjective is the fix task's objective: the incident, its alert and
-// triage's diagnosis, and that nothing is applied.
-func FixObjective(incident Incident) string {
-	return "Incident " + incident.ID + " (alert " + incident.Alert() + ") was diagnosed by triage:\n\n" +
-		strings.TrimSpace(incident.Diagnosis) +
-		"\n\nPropose the fix and its rollback for this incident, as your runbook says; apply nothing."
 }
