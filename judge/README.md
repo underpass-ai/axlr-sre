@@ -12,14 +12,14 @@ for each scenario                                   Jev, one question per fact
 ## Run it
 
 ```bash
-judge/run.sh                        # every scenario; image-pull left firing an hour for the resends
-judge/run.sh --only oom,drift       # some scenarios, no soak
+judge/run.sh                        # every scenario the read node can diagnose; image-pull left firing an hour for the resends
+judge/run.sh --only oom,drift       # some scenarios, no soak; drift only this way
 judge/run.sh --soak-for 0           # every scenario, without the hour
 go run ./cmd/sre-judge report       # the tables again, from judge/results
 go run ./cmd/sre-judge score --expected scenarios/oom/expected.md --incident <id>   # one incident, offline
 ```
 
-The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or from `~/.config/axlr-bots/env` (the node's file) and never prints it. The control plane is read over its socket, as the `axlr-bots` CLI does. Exit 1 when the run does not clear phase 0's goals.
+The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or from `~/.config/axlr-bots/env` (the node's file) and never prints it. The control plane is read over its socket, as the `axlr-bots` CLI does. Exit 1 when the run does not clear the read node's goals: the nine scenarios it can diagnose fire, at least eight correct, 0 duplicates, under $1 (`ReadNode` in `domain/goals.go`, decided on 5 November 2026; phase 0's ten-scenario bar is kept as `Phase0`).
 
 | Flag | Default | |
 |---|---|---|
@@ -28,6 +28,8 @@ The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or fro
 | `--soak`, `--soak-for` | `image-pull`, `60m` from `run.sh` | the scenario left firing after its diagnosis, and for how long |
 | `--out` | `judge/results` | one JSON per scenario as it lands; a run that breaks resumes with `--only` |
 | `--model` | `jev-1.13.0` | the Jev version, pinned, the one AXLR's `axlr-v2` judge policy and axlr-bots' Jev runtime use |
+
+A scenario whose directory holds `needs-write-node` is left out of the default run: only the write node can diagnose it (drift: `kubectl diff` needs `patch`). `--only` still runs it. Phase 0's verdicts stay in `judge/results/phase-0/`; `report` reads only the files directly under `--out`.
 
 `node-notready` runs last: it stops a worker's kubelet, and the faults before it schedule onto that worker. After every `clear.sh` the judge waits for every node `Ready`.
 

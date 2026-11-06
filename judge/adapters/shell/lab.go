@@ -25,6 +25,18 @@ type Lab struct {
 	Stdout *os.File
 }
 
+// WriteNodeMarker is the file that keeps a scenario out of the default
+// run: only the write node (sre-rw) can diagnose it. drift's evidence is
+// kubectl diff, a server dry run that needs patch, which the read node's
+// ServiceAccount does not have.
+const WriteNodeMarker = "needs-write-node"
+
+// NeedsWriteNode reports a scenario that holds the WriteNodeMarker.
+func (l Lab) NeedsWriteNode(scenario string) bool {
+	_, err := os.Stat(filepath.Join(l.Dir, scenario, WriteNodeMarker))
+	return err == nil
+}
+
 // Scenarios lists the directories holding an inject.sh, in name order.
 func (l Lab) Scenarios() ([]string, error) {
 	entries, err := os.ReadDir(l.Dir)

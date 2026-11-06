@@ -1,26 +1,20 @@
 {
   "Scenario": "image-pull",
   "Alert": "LabImagePullBackOff",
-  "IncidentID": "inc-8dfdc7be57e19b5576c6054d",
-  "Cycle": 1,
+  "IncidentID": "inc-e76583da282c48d350211a68",
+  "Cycle": 2,
   "Status": "Diagnosed",
-  "Opened": 1,
-  "Reopened": 0,
-  "Repeated": 15,
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
   "Duplicates": 0,
-  "OtherAlerts": [
-    "LabPodOOMKilled",
-    "LabNodeNotReady",
-    "LabVolumeFull",
-    "LabPodNotReady",
-    "LabContainerConfigError"
-  ],
-  "InjectedAt": "2026-11-01T12:04:27.170504218+01:00",
-  "SettledAt": "2026-11-01T12:06:52.484341151+01:00",
-  "OpenToSettled": 38694876947,
-  "CostUSD": 0.009075185,
-  "Repeats": 15,
-  "Diagnosis": "CAUSE: Deployment `catalog` in namespace `shop` points its pod template at image `docker.io/library/nginx:1.99`, a tag that does not exist in the registry, so pod `catalog-6b8cf764b7-xvrnl` stays in ImagePullBackOff and its container `catalog` never starts.\n\nEVIDENCE:\n- `kubectl --context kind-sre-lab describe -n shop pod catalog-6b8cf764b7-xvrnl`: container `catalog` is Waiting with Reason `ImagePullBackOff`, Image `docker.io/library/nginx:1.99`, Restart Count 0, Ready False, Status Pending. (Verified by me.)\n- `kubectl --context kind-sre-lab describe -n shop pod catalog-6b8cf764b7-xvrnl` (Events): `Failed to pull image \"docker.io/library/nginx:1.99\": rpc error: code = NotFound desc = failed to pull and unpack image \"docker.io/library/nginx:1.99\": failed to resolve reference ... docker.io/library/nginx:1.99: not found`, followed by `Error: ErrImagePull` and `Error: ImagePullBackOff`. (Verified by me.)\n- `kubectl --context kind-sre-lab get -n shop events --sort-by=.lastTimestamp` (diag-k8s): the same NotFound error also appears for the earlier pod `catalog-6b8cf764b7-dcbx7` about 59 minutes ago, so this tag has never pulled.\n- `kubectl --context kind-sre-lab get -n shop rs -l app=catalog -o custom-columns=...` (diag-k8s): the only ReplicaSet is `catalog-6b8cf764b7` at REVISION 1, CHANGE-CAUSE `\u003cnone\u003e`, DESIRED 1, IMAGE `docker.io/library/nginx:1.99`. No earlier revision exists, so no previous revision ever ran.\n- `kubectl --context kind-sre-lab describe -n shop deployment catalog` (diag-k8s): pod template image `docker.io/library/nginx:1.99`, Available False (MinimumReplicasUnavailable), OldReplicaSets `\u003cnone\u003e`, revision annotation 1.\n- `kubectl --context kind-sre-lab logs -n shop catalog-6b8cf764b7-xvrnl --all-containers=true` (diag-k8s): exit code 1, `container \"catalog\" ... is waiting to start: trying and failing to pull image`. The container never started, so there are no application logs.\n\nFIX (not applied): change the image of Deployment `catalog` in namespace `shop` from `docker.io/library/nginx:1.99` to an existing tag, for example `docker.io/library/nginx:1.27-alpine` (the tag the `search` deployment already runs on this cluster), then confirm the new pod pulls the image.",
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-05T22:42:23.240155438+01:00",
+  "SettledAt": "2026-11-05T22:44:38.576236583+01:00",
+  "OpenToSettled": 28450761295,
+  "CostUSD": 0.019578095000000004,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Deployment `catalog` in namespace `shop` points its container at the non-existent image `docker.io/library/nginx:1.99`, so pod `catalog-6b8cf764b7-8dff9` cannot pull its image and never starts.\n\nEVIDENCE:\n1. Pod `catalog-6b8cf764b7-8dff9`, container `catalog`: Image `docker.io/library/nginx:1.99`, State Waiting, Reason `ImagePullBackOff`, Restart Count 0 (my call: describe pod catalog-6b8cf764b7-8dff9, namespace shop; diag-k8s made the same read).\n2. Pod events: `Failed to pull image \"docker.io/library/nginx:1.99\": ... docker.io/library/nginx:1.99: not found` (code NotFound), then `Error: ErrImagePull`, then `Error: ImagePullBackOff` with Back-off events (my call: describe pod catalog-6b8cf764b7-8dff9, namespace shop).\n3. Namespace events: the same NotFound pull error and ErrImagePull/ImagePullBackOff also appear on the earlier pod `catalog-6b8cf764b7-td86w` (count 4 ErrImagePull, 8 ImagePullBackOff), so this is not a one-off pod problem (diag-k8s call: events, warnings_only true, namespace shop).\n4. Deployment `catalog`, revision 1 (`deployment.kubernetes.io/revision: \"1\"`, no change-cause), template image `docker.io/library/nginx:1.99`, `imagePullPolicy: IfNotPresent`, no imagePullSecrets; status `Available=False`, reason `MinimumReplicasUnavailable`, `unavailableReplicas: 1` (diag-k8s call: get deployment catalog, namespace shop, raw true).\n5. Logs: `container \"catalog\" in pod \"catalog-6b8cf764b7-8dff9\" is waiting to start: image can't be pulled`, so there is no container output to read (diag-k8s call: logs pod catalog-6b8cf764b7-8dff9, namespace shop).\n\nFIX (not applied): change the image of Deployment `shop/catalog` from `docker.io/library/nginx:1.99` to an existing tag (for example `docker.io/library/nginx:1.27`, after confirming the tag exists in the registry) so the new ReplicaSet can pull and start.",
   "Score": {
     "Verdicts": [
       {
@@ -30,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.93,
-          "InputTokens": 1065,
-          "Took": 171598732
+          "Probability": 0.91,
+          "InputTokens": 985,
+          "Took": 161093393
         }
       },
       {
@@ -43,8 +37,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 0.99,
-          "InputTokens": 1059,
-          "Took": 132726727
+          "InputTokens": 979,
+          "Took": 176571772
         }
       },
       {
@@ -54,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 1073,
-          "Took": 157510347
+          "Probability": 0.83,
+          "InputTokens": 993,
+          "Took": 138309543
         }
       },
       {
@@ -66,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.97,
-          "InputTokens": 1068,
-          "Took": 134687932
+          "Probability": 0.94,
+          "InputTokens": 988,
+          "Took": 133894033
         }
       },
       {
@@ -78,9 +72,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.96,
-          "InputTokens": 1079,
-          "Took": 121698821
+          "Probability": 0.95,
+          "InputTokens": 999,
+          "Took": 161920415
         }
       },
       {
@@ -90,9 +84,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.95,
-          "InputTokens": 1081,
-          "Took": 148734077
+          "Probability": 0.8,
+          "InputTokens": 1001,
+          "Took": 160471138
         }
       }
     ]

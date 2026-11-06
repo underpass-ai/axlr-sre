@@ -1,20 +1,20 @@
 {
   "Scenario": "hpa-maxed",
   "Alert": "LabHPAMaxedOut",
-  "IncidentID": "inc-3cca76529c863844f90565b9",
-  "Cycle": 1,
+  "IncidentID": "inc-b939ae7475127d49941faf2f",
+  "Cycle": 2,
   "Status": "Diagnosed",
-  "Opened": 1,
-  "Reopened": 0,
+  "Opened": 0,
+  "Reopened": 1,
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T12:01:00.23379165+01:00",
-  "SettledAt": "2026-11-01T12:04:25.644444651+01:00",
-  "OpenToSettled": 46543313780,
-  "CostUSD": 0.01038795,
+  "InjectedAt": "2026-11-05T22:39:26.336318629+01:00",
+  "SettledAt": "2026-11-05T22:42:21.73852411+01:00",
+  "OpenToSettled": 26261999213,
+  "CostUSD": 0.023756435000000003,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Deployment `load` in namespace `shop` runs three busy loops of `wget http://search` that drive CPU on the `search` pods to 173% of request, so HPA `shop/search` scales to its maximum of 3 replicas and stays there.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab describe -n shop hpa search`: Min replicas 1, Max replicas 3, `3 current / 3 desired`, metric `cpu (percentage of request) 173% (17m) / 50%`, condition `ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count`. (Verified by triage.)\n2. `kubectl --context kind-sre-lab describe -n shop hpa search`, Events: `2m42s Normal SuccessfulRescale New size: 3; reason: cpu resource utilization (percentage of request) above target`, preceded by `2m57s Warning FailedGetResourceMetric ... no metrics returned from resource metrics API`. (Verified by triage.)\n3. `kubectl --context kind-sre-lab describe -n shop deployment load`: revision 1, `OldReplicaSets: \u003cnone\u003e`, `NewReplicaSet: load-55fdc5b776`, container `load` (image `docker.io/library/busybox:1.37`), command `for i in 1 2 3; do (while true; do wget -q -O /dev/null http://search; done) \u0026 done; wait`, limits `cpu: 500m`, requests `cpu: 10m`. (Verified by triage.)\n4. `kubectl --context kind-sre-lab top pods -n shop` (reported by diag-k8s, not re-run by triage): `load-55fdc5b776-8rpks` uses 498m CPU, while `search-5ccfdcf4cf-kmzb8`, `search-5ccfdcf4cf-chsv2` and `search-5ccfdcf4cf-rv5pv` use 15m to 22m each.\n5. `kubectl --context kind-sre-lab describe -n shop deployment search` (reported by diag-k8s, not re-run by triage): revision 1, image `nginx:1.27-alpine`, container requests `cpu 10m`, limit `cpu 200m`, unchanged, so the `search` workload itself is not misconfigured.\n\nFIX (not applied): scale the load generator to zero with `kubectl --context kind-sre-lab scale -n shop deployment/load --replicas=0`, which stops the `wget` loops so the HPA can scale `search` back down.",
+  "Diagnosis": "CAUSE: HPA shop/search is pinned at its maxReplicas of 3, because the Deployment load in namespace shop runs three busybox loops that call http://search nonstop, pushing search CPU to 186% of request against a 50% target.\n\nEVIDENCE:\n1. describe hpa/search (namespace shop, my check): Min 1, Max 3, \"Deployment pods: 3 current / 3 desired\", CPU \"186% (18m) / 50%\" as a percentage of request, ScalingLimited=True with reason TooManyReplicas (\"desired replica count is more than the maximum replica count\").\n2. describe deployment/load (shop, diag-k8s): image docker.io/library/busybox:1.37, command `for i in 1 2 3; do (while true; do wget -q -O /dev/null http://search; done) \u0026 done; wait`, CPU request 10m, limit 500m, 1/1 available.\n3. get pod (shop, diag-k8s): load-55fdc5b776-ktjb5 has IP 10.244.2.74 and is Running 1/1. The search pods are 10.244.2.73, 10.244.2.75 and 10.244.1.16.\n4. logs search-5ccfdcf4cf-l7m4v, tail 50 (shop, diag-k8s): every line is `10.244.2.74 ... \"GET / HTTP/1.1\" 200 615 \"-\" \"Wget\"`, so the caller is the load pod.\n5. events (shop, diag-k8s): HPA/search Normal SuccessfulRescale \"New size: 3; reason: cpu resource utilization (percentage of request) above target\". Earlier Warning FailedGetResourceMetric \"no metrics returned from resource metrics API\" and FailedComputeMetricsReplicas (my describe hpa/search, events section, confirms both).\n\nFIX (not applied): scale the Deployment load in namespace shop to zero replicas (or delete it), provided the traffic is not legitimate; if it is, raise the HPA maxReplicas above 3 instead.",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.81,
-          "InputTokens": 1018,
-          "Took": 161556109
+          "Probability": 0.89,
+          "InputTokens": 908,
+          "Took": 173539414
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 1011,
-          "Took": 138002215
+          "Probability": 0.94,
+          "InputTokens": 901,
+          "Took": 135449773
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.96,
-          "InputTokens": 1035,
-          "Took": 175878863
+          "Probability": 0.83,
+          "InputTokens": 925,
+          "Took": 154736113
         }
       },
       {
@@ -60,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.58,
-          "InputTokens": 1024,
-          "Took": 123353272
+          "Probability": 0.87,
+          "InputTokens": 914,
+          "Took": 147974848
         }
       },
       {
@@ -72,9 +72,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.96,
-          "InputTokens": 1022,
-          "Took": 157648663
+          "Probability": 0.97,
+          "InputTokens": 912,
+          "Took": 133202642
         }
       },
       {
@@ -84,9 +84,9 @@
         },
         "Choice": {
           "Option": "missing",
-          "Probability": 0.86,
-          "InputTokens": 1038,
-          "Took": 147952742
+          "Probability": 0.51,
+          "InputTokens": 928,
+          "Took": 136437386
         }
       }
     ]

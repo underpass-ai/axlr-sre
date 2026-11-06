@@ -57,6 +57,6 @@ func scoreCommand(ctx context.Context, args []string) error {
 		return err
 	}
 	result := domain.Result{Scenario: expected.Scenario, Alert: expected.Alert, Status: domain.IncidentDiagnosed, Score: score}
-	fmt.Print(markdown.Render(domain.NewRun([]domain.Result{result}), domain.Phase0))
+	fmt.Print(markdown.Render(domain.NewRun([]domain.Result{result}), domain.ReadNode))
 	return nil
 }

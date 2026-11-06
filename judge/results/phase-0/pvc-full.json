@@ -1,0 +1,95 @@
+{
+  "Scenario": "pvc-full",
+  "Alert": "LabVolumeFull",
+  "IncidentID": "inc-f071a1505807dd150d9aae64",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T12:15:14.789947684+01:00",
+  "SettledAt": "2026-11-01T12:18:05.277858626+01:00",
+  "OpenToSettled": 37830698463,
+  "CostUSD": 0.008525345,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Pod `uploads-8647dc6f95-x7gsv` in namespace `shop` (container `uploads`, ReplicaSet `uploads-8647dc6f95`) fills the 64Mi PVC `uploads-data` by writing a 200 MiB file (`dd ... count=200`) into `/data`, so the write fails with \"No space left on device\".\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab describe -n shop pvc uploads-data`: Status Bound, Capacity 64Mi, StorageClass lab-local, Volume lab-uploads, Used By uploads-8647dc6f95-x7gsv, Access Modes RWO.\n2. `kubectl --context kind-sre-lab describe pv lab-uploads`: StorageClass lab-local, Reclaim Policy Retain, Source LocalVolume at /mnt/lab-uploads, Node Affinity sre-lab-worker2, Capacity 64Mi.\n3. `kubectl --context kind-sre-lab describe storageclass lab-local`: Provisioner kubernetes.io/no-provisioner, AllowVolumeExpansion unset (the claim cannot be expanded), VolumeBindingMode WaitForFirstConsumer.\n4. `kubectl --context kind-sre-lab describe -n shop pod uploads-8647dc6f95-x7gsv`: command `sh -c \"echo uploads: writing; dd if=/dev/zero of=/data/uploads.bin bs=1M count=200; echo uploads: write failed; df -h /data; sleep 36000\"`, mounted at /data from claim uploads-data, Restart Count 0, Ready True.\n5. `kubectl --context kind-sre-lab logs -n shop uploads-8647dc6f95-x7gsv` (verified by me): `dd: error writing '/data/uploads.bin': No space left on device`, `64+0 records out`, `67108864 bytes (64.0MB) copied`, `uploads: write failed`, then `tmpfs 64.0M 64.0M 0 100% /data`.\n6. `kubectl --context kind-sre-lab describe -n shop pvc uploads-data` (verified by me): StorageClass lab-local, Status Bound, Capacity 64Mi, Used By uploads-8647dc6f95-x7gsv, matching diag-k8s's values.\n\nFIX (not applied): Change the uploads Deployment's command so it stops writing 200 MiB into the 64Mi claim (or move uploads to a larger volume, since StorageClass lab-local does not allow expansion of the existing claim).",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "PVC `uploads-data`, mounted at `/data` by Deployment `uploads`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.79,
+          "InputTokens": 1025,
+          "Took": 151971045
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 1013,
+          "Took": 155647609
+        }
+      },
+      {
+        "Fact": {
+          "Name": "usage",
+          "Value": "100 % (or above 95 %) of `64Mi`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.51,
+          "InputTokens": 1028,
+          "Took": 134514755
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "the `uploads` container wrote `uploads.bin` with `dd` until `No space left on device`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 1032,
+          "Took": 137861320
+        }
+      },
+      {
+        "Fact": {
+          "Name": "volume",
+          "Value": "PV `lab-uploads`, StorageClass `lab-local` (no provisioner: it cannot be expanded)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.64,
+          "InputTokens": 1039,
+          "Took": 163772811
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "free space or move to a larger volume; expansion is not possible with this class"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.92,
+          "InputTokens": 1033,
+          "Took": 157001669
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

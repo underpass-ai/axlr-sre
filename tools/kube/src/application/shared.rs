@@ -124,6 +124,7 @@ pub fn summarize(item: &Value) -> Value {
             summary.insert("restarts".into(), json!(restarts));
             summary.insert("reason".into(), json!(waiting));
             summary.insert("node".into(), spec["nodeName"].clone());
+            summary.insert("ip".into(), status["podIP"].clone());
         }
         Some("Deployment" | "StatefulSet" | "ReplicaSet") => {
             summary.insert("replicas".into(), spec["replicas"].clone());
@@ -230,12 +231,13 @@ mod tests {
     fn summaries_depend_on_the_kind() {
         let pod = summarize(
             &json!({"kind": "Pod", "metadata": {"name": "p", "namespace": "n"}, "spec": {"nodeName": "w1"},
-            "status": {"phase": "Running", "containerStatuses": [{"ready": true, "restartCount": 2}, {"ready": false, "restartCount": 3, "state": {"waiting": {"reason": "CrashLoopBackOff"}}}]}}),
+            "status": {"phase": "Running", "podIP": "10.244.2.63", "containerStatuses": [{"ready": true, "restartCount": 2}, {"ready": false, "restartCount": 3, "state": {"waiting": {"reason": "CrashLoopBackOff"}}}]}}),
         );
         assert_eq!(pod["ready"], "1/2");
         assert_eq!(pod["restarts"], 5);
         assert_eq!(pod["reason"], "CrashLoopBackOff");
         assert_eq!(pod["node"], "w1");
+        assert_eq!(pod["ip"], "10.244.2.63");
         let terminated = summarize(
             &json!({"kind": "Pod", "status": {"containerStatuses": [{"state": {"terminated": {"reason": "OOMKilled"}}}]}}),
         );

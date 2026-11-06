@@ -1,0 +1,83 @@
+{
+  "Scenario": "cert-expiry",
+  "Alert": "LabCertificateExpiringSoon",
+  "IncidentID": "inc-e167970944d13b9d9b77073a",
+  "Cycle": 1,
+  "Status": "Diagnosed",
+  "Opened": 1,
+  "Reopened": 0,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-01T11:50:23.100897847+01:00",
+  "SettledAt": "2026-11-01T11:53:13.587858636+01:00",
+  "OpenToSettled": 45518036713,
+  "CostUSD": 0.01035843,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Certificate `shop-tls` in namespace `shop` expires about an hour after issue because its `spec.duration` is `1h` (with `renewBefore: 10m`), and cert-manager's `lab-selfsigned` Issuer issues it with that 1-hour lifetime, so the alert reflects a short-lived lab certificate, not a failed renewal.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab get -n shop certificate shop-tls -o yaml` (diag-k8s): `spec.duration: 1h`, `renewBefore: 10m`, `generation: 1`, `revision: 1`, `notBefore: 2026-11-01T10:50:23Z`, `notAfter: 2026-11-01T11:50:23Z`, `renewalTime: 2026-11-01T11:40:23Z`, condition Ready=True.\n2. `kubectl --context kind-sre-lab get -n shop certificate shop-tls -o jsonpath='{.spec.duration} {.spec.renewBefore} {.status.notAfter} {.status.revision}'` (triage check): output `1h 10m 2026-11-01T11:50:23Z 1`, confirming the 1h duration, the expiry at 11:50:23Z, and revision 1.\n3. `kubectl --context kind-sre-lab describe -n shop certificate shop-tls` (diag-k8s): the only events are the initial issuance (\"The certificate has been successfully issued\", CertificateRequest `shop-tls-1`). The Certificate has not been re-issued since.\n4. `kubectl --context kind-sre-lab get -n shop certificaterequest shop-tls-1 -o yaml` (diag-k8s): `spec.duration: 1h0m0s`, `issuerRef: lab-selfsigned` (kind Issuer), conditions Approved=True and Ready=True (\"Certificate fetched from issuer successfully\"). The request carries the 1-hour duration.\n5. `kubectl --context kind-sre-lab describe -n shop issuer lab-selfsigned` (diag-k8s): `Self Signed` spec, Ready=True (reason IsReady), so the Issuer is healthy and not the cause. `kubectl --context kind-sre-lab get -n shop events --sort-by=.lastTimestamp` (diag-k8s) also shows a Warning `BadConfig` on `certificaterequest/shop-tls-1`: \"Certificate will be issued with an empty Issuer DN, which contravenes RFC 5280\". This is a secondary issue and does not cause the expiry.\n6. The Secret `shop-tls` was not verified: diag-k8s's read of `kubectl --context kind-sre-lab get -n shop secret shop-tls` was refused by the execution policy, and no Secret data was read.\n\nFIX (not applied): change `spec.duration` of Certificate `shop/shop-tls` from `1h` to a long-lived value such as `2160h`, keeping `renewBefore` well below it (for example `720h`), then apply it.",
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Certificate `shop-tls` (Secret `shop-tls`, DNS `shop.lab.internal`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.87,
+          "InputTokens": 1154,
+          "Took": 169766537
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`shop`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.99,
+          "InputTokens": 1138,
+          "Took": 145815733
+        }
+      },
+      {
+        "Fact": {
+          "Name": "expiry",
+          "Value": "`notAfter` about one hour after it was issued: expires in under 60 minutes"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1155,
+          "Took": 142089867
+        }
+      },
+      {
+        "Fact": {
+          "Name": "cause",
+          "Value": "`duration: 1h` on the Certificate (with `renewBefore: 10m`), issued by Issuer `lab-selfsigned`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 1170,
+          "Took": 134438362
+        }
+      },
+      {
+        "Fact": {
+          "Name": "fix (not applied)",
+          "Value": "set a real duration (for example `2160h`) and renew; or force a renewal now"
+        },
+        "Choice": {
+          "Option": "missing",
+          "Probability": 0.61,
+          "InputTokens": 1164,
+          "Took": 135646328
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

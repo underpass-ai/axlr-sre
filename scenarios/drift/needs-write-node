@@ -1,0 +1,4 @@
+Only the write node (sre-rw) diagnoses drift: its evidence is `kubectl diff -f desired/`, a
+server-side dry run that needs `patch`, which the read node's ServiceAccount axlr-sre-read does not
+have. sre-judge leaves this scenario out of its default run; `--only drift` still runs it.
+Decided on 5 November 2026: drift is the first scenario of the `fix` bot on sre-rw.

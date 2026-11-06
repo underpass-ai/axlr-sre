@@ -1,20 +1,20 @@
 {
   "Scenario": "netpol",
   "Alert": "LabPodNotReady",
-  "IncidentID": "inc-b66bd0be31a1ef1e4ade9a25",
-  "Cycle": 1,
+  "IncidentID": "inc-121e51fd6aea6340a2ec8afd",
+  "Cycle": 2,
   "Status": "Diagnosed",
-  "Opened": 1,
-  "Reopened": 0,
+  "Opened": 0,
+  "Reopened": 1,
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T12:09:20.830002603+01:00",
-  "SettledAt": "2026-11-01T12:12:16.677225638+01:00",
-  "OpenToSettled": 33098604251,
-  "CostUSD": 0.00771901,
+  "InjectedAt": "2026-11-05T22:47:02.462177889+01:00",
+  "SettledAt": "2026-11-05T22:49:43.379449887+01:00",
+  "OpenToSettled": 31201699749,
+  "CostUSD": 0.020570855,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Pod `payments-5bc47dccd9-66lgs` in namespace `shop` is Running but not Ready because its readiness probe (`nslookup kubernetes.default.svc.cluster.local`) times out, and the NetworkPolicy `deny-all` in `shop` denies all egress, including DNS.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab describe pod payments-5bc47dccd9-66lgs -n shop`: Ready=False, ContainersReady=False, Restart Count 0, readiness `exec [nslookup kubernetes.default.svc.cluster.local] delay=0s timeout=5s period=10s #success=1 #failure=2`, container `payments` started with `echo payments up; sleep 36000`.\n2. `kubectl --context kind-sre-lab get events -n shop --sort-by=.lastTimestamp`: Warning Unhealthy on pod/payments-5bc47dccd9-66lgs, \"Readiness probe failed: command timed out: \\\"nslookup kubernetes.default.svc.cluster.local\\\" timed out after 5s\", repeated 15 times over 2m18s.\n3. `kubectl --context kind-sre-lab get networkpolicy -n shop -o yaml`: NetworkPolicy `deny-all` has `podSelector: {}`, `policyTypes: [Egress]` and no egress rules, so every pod in `shop` loses egress, including DNS to kube-dns.\n4. `kubectl --context kind-sre-lab logs payments-5bc47dccd9-66lgs -n shop` (reported by diag-k8s): \"payments up\". The container runs; only the probe fails.\n5. `kubectl --context kind-sre-lab get deploy payments -n shop -o yaml` (reported by diag-k8s): only revision 1 exists (ReplicaSet `payments-5bc47dccd9`), `Available=False` with reason MinimumReplicasUnavailable, unavailableReplicas 1. The probe is in the template, so the egress block is the change to look at.\n6. `kubectl --context kind-sre-lab diff -f desired/` (reported by diag-k8s): exit code 2 with `namespaces \"drift-lab\" not found`, so no drift result was obtained.\n\nFIX (not applied): add an egress rule to NetworkPolicy `deny-all` in `shop` that allows UDP and TCP port 53 to the kube-dns pods in `kube-system` (or remove `deny-all`), so the readiness probe's DNS lookup can resolve.",
+  "Diagnosis": "CAUSE: Pod shop/payments-5bc47dccd9-n6ljs is not ready because the NetworkPolicy `deny-all` in namespace shop denies all egress, so its readiness probe `nslookup kubernetes.default.svc.cluster.local` cannot reach DNS and times out.\nEVIDENCE:\n1. Pod shop/payments-5bc47dccd9-n6ljs: phase Running, ready 0/1, restarts 0, node sre-lab-worker2, IP 10.244.2.79. The container did not crash. (diag-k8s, kube get pod, namespace shop)\n2. Describe: Ready False and ContainersReady False. Readiness is `exec [nslookup kubernetes.default.svc.cluster.local] delay=0s timeout=5s period=10s #success=1 #failure=2`. Events: Warning Unhealthy \"Readiness probe failed: command timed out: \\\"nslookup kubernetes.default.svc.cluster.local\\\" timed out after 5s\". (diag-k8s, kube describe pod)\n3. Namespace shop events (warnings only), re-checked by me: reason Unhealthy, count 15, object Pod/payments-5bc47dccd9-n6ljs, same nslookup timeout message. The same probe timeout also appears on sibling Pod/payments-5bc47dccd9-hxf47 (count 17). (my kube events call, namespace shop, warnings_only true)\n4. Pod logs (tail 50): the only line is \"payments up\", so the application runs and only the probe fails. (diag-k8s, kube logs pod payments-5bc47dccd9-n6ljs)\n5. NetworkPolicy shop/deny-all, re-checked by me: podSelector {} (all pods in shop), policyTypes [\"Egress\"], no egress rules, label lab/scenario=netpol. Egress is denied for every pod, including DNS on port 53. (my kube get networkpolicy raw, namespace shop; diag-k8s ran the same read)\n6. Deployment payments in shop, revision 1 per diag-k8s: readinessProbe exec nslookup with failureThreshold 2, periodSeconds 10, timeoutSeconds 5. Condition Available False, reason MinimumReplicasUnavailable, 1 unavailable replica. (diag-k8s, kube get deployment raw, namespace shop)\n7. No ImagePull, secret or OOM event for this pod in the namespace events. (diag-k8s, kube events warnings_only, namespace shop; my check agrees)\nFIX (not applied): add an egress allow rule for DNS (UDP and TCP port 53 to the kube-dns pods in kube-system) to the `deny-all` NetworkPolicy in namespace shop, or delete `deny-all` if it is not wanted.",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.78,
-          "InputTokens": 998,
-          "Took": 183905691
+          "Probability": 0.84,
+          "InputTokens": 1046,
+          "Took": 178530570
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 1,
-          "InputTokens": 993,
-          "Took": 132090458
+          "Probability": 0.95,
+          "InputTokens": 1041,
+          "Took": 127996395
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 1016,
-          "Took": 126378802
+          "Probability": 0.96,
+          "InputTokens": 1064,
+          "Took": 148376999
         }
       },
       {
@@ -60,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 1033,
-          "Took": 127864700
+          "Probability": 0.91,
+          "InputTokens": 1081,
+          "Took": 142644581
         }
       },
       {
@@ -72,9 +72,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.96,
-          "InputTokens": 1023,
-          "Took": 136364168
+          "Probability": 0.91,
+          "InputTokens": 1071,
+          "Took": 112731106
         }
       }
     ]

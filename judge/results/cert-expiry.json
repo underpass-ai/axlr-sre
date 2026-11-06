@@ -1,20 +1,20 @@
 {
   "Scenario": "cert-expiry",
   "Alert": "LabCertificateExpiringSoon",
-  "IncidentID": "inc-e167970944d13b9d9b77073a",
-  "Cycle": 1,
+  "IncidentID": "inc-c48312815121da48768c74e7",
+  "Cycle": 2,
   "Status": "Diagnosed",
-  "Opened": 1,
-  "Reopened": 0,
+  "Opened": 0,
+  "Reopened": 1,
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T11:50:23.100897847+01:00",
-  "SettledAt": "2026-11-01T11:53:13.587858636+01:00",
-  "OpenToSettled": 45518036713,
-  "CostUSD": 0.01035843,
+  "InjectedAt": "2026-11-05T22:30:06.739654628+01:00",
+  "SettledAt": "2026-11-05T22:33:02.264659253+01:00",
+  "OpenToSettled": 34522692101,
+  "CostUSD": 0.02240702,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Certificate `shop-tls` in namespace `shop` expires about an hour after issue because its `spec.duration` is `1h` (with `renewBefore: 10m`), and cert-manager's `lab-selfsigned` Issuer issues it with that 1-hour lifetime, so the alert reflects a short-lived lab certificate, not a failed renewal.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab get -n shop certificate shop-tls -o yaml` (diag-k8s): `spec.duration: 1h`, `renewBefore: 10m`, `generation: 1`, `revision: 1`, `notBefore: 2026-11-01T10:50:23Z`, `notAfter: 2026-11-01T11:50:23Z`, `renewalTime: 2026-11-01T11:40:23Z`, condition Ready=True.\n2. `kubectl --context kind-sre-lab get -n shop certificate shop-tls -o jsonpath='{.spec.duration} {.spec.renewBefore} {.status.notAfter} {.status.revision}'` (triage check): output `1h 10m 2026-11-01T11:50:23Z 1`, confirming the 1h duration, the expiry at 11:50:23Z, and revision 1.\n3. `kubectl --context kind-sre-lab describe -n shop certificate shop-tls` (diag-k8s): the only events are the initial issuance (\"The certificate has been successfully issued\", CertificateRequest `shop-tls-1`). The Certificate has not been re-issued since.\n4. `kubectl --context kind-sre-lab get -n shop certificaterequest shop-tls-1 -o yaml` (diag-k8s): `spec.duration: 1h0m0s`, `issuerRef: lab-selfsigned` (kind Issuer), conditions Approved=True and Ready=True (\"Certificate fetched from issuer successfully\"). The request carries the 1-hour duration.\n5. `kubectl --context kind-sre-lab describe -n shop issuer lab-selfsigned` (diag-k8s): `Self Signed` spec, Ready=True (reason IsReady), so the Issuer is healthy and not the cause. `kubectl --context kind-sre-lab get -n shop events --sort-by=.lastTimestamp` (diag-k8s) also shows a Warning `BadConfig` on `certificaterequest/shop-tls-1`: \"Certificate will be issued with an empty Issuer DN, which contravenes RFC 5280\". This is a secondary issue and does not cause the expiry.\n6. The Secret `shop-tls` was not verified: diag-k8s's read of `kubectl --context kind-sre-lab get -n shop secret shop-tls` was refused by the execution policy, and no Secret data was read.\n\nFIX (not applied): change `spec.duration` of Certificate `shop/shop-tls` from `1h` to a long-lived value such as `2160h`, keeping `renewBefore` well below it (for example `720h`), then apply it.",
+  "Diagnosis": "CAUSE: Certificate shop/shop-tls in namespace shop expires at 2026-11-05T22:30:07Z because its spec sets `duration: 1h` (with `renewBefore: 10m`) on the self-signed Issuer lab-selfsigned, so it is short-lived by design and cert-manager's scheduled renewal (renewalTime 22:20:07Z) has not yet run.\n\nEVIDENCE:\n1. Certificate spec: `duration: 1h`, `renewBefore: 10m`, `issuerRef: lab-selfsigned` (Issuer), `secretName: shop-tls`, `dnsNames: [shop.lab.internal]`. Status: `notBefore` 2026-11-05T21:30:07Z, `notAfter` 2026-11-05T22:30:07Z, `renewalTime` 2026-11-05T22:20:07Z, `revision` 1, Ready=True \"Certificate is up to date and has not expired\". Shown by diag-k8s (get kind certificate name shop-tls namespace shop raw true, and describe kind certificate name shop-tls namespace shop) and re-checked by me with kube/get (kind certificate, name shop-tls, namespace shop, raw true).\n2. Issuer lab-selfsigned is Ready=True, reason IsReady, with no events. Shown by diag-k8s (describe kind issuer name lab-selfsigned namespace shop).\n3. CertificateRequest shop-tls-1 was approved and issued (Approved=True, Ready=True, reason Issued, \"Certificate fetched from issuer successfully\"). It carries a Warning event BadConfig: \"Certificate will be issued with an empty Issuer DN, which contravenes RFC 5280\". This event appears twice, at 21:00:40Z and 21:30:07Z. Shown by diag-k8s (describe kind certificaterequest name shop-tls-1 namespace shop) and by my kube/events (namespace shop).\n4. No renewal failure is recorded for shop-tls. The certificate's events show only the first issuance (Normal Issuing, Generated, Requested, Issuing successfully). The other shop warnings (cart BackOff, checkout BackOff, orders secret \"db\" not found, catalog ImagePullBackOff on nginx:1.99, payments readiness timeouts, search HPA metrics) are unrelated to this certificate. Shown by diag-k8s (events namespace shop warnings_only true) and by my kube/events (namespace shop).\n5. The Secret shop-tls was not read, per the rules.\n\nFIX (not applied): Raise `spec.duration` on Certificate shop/shop-tls from 1h to a long lifetime (for example 2160h) so cert-manager reissues it, since the 1h expiry comes from the spec and not from a renewal failure.",
   "Score": {
     "Verdicts": [
       {
@@ -25,8 +25,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 0.87,
-          "InputTokens": 1154,
-          "Took": 169766537
+          "InputTokens": 1083,
+          "Took": 183797578
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 1138,
-          "Took": 145815733
+          "Probability": 0.9,
+          "InputTokens": 1067,
+          "Took": 210172439
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 1,
-          "InputTokens": 1155,
-          "Took": 142089867
+          "Probability": 0.97,
+          "InputTokens": 1084,
+          "Took": 139088230
         }
       },
       {
@@ -60,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 1,
-          "InputTokens": 1170,
-          "Took": 134438362
+          "Probability": 0.98,
+          "InputTokens": 1099,
+          "Took": 158780732
         }
       },
       {
@@ -71,10 +71,10 @@
           "Value": "set a real duration (for example `2160h`) and renew; or force a renewal now"
         },
         "Choice": {
-          "Option": "missing",
-          "Probability": 0.61,
-          "InputTokens": 1164,
-          "Took": 135646328
+          "Option": "stated",
+          "Probability": 0.79,
+          "InputTokens": 1093,
+          "Took": 123553882
         }
       }
     ]

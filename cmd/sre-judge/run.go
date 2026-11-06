@@ -25,7 +25,7 @@ func runCommand(ctx context.Context, args []string) error {
 	var c common
 	c.bind(flags)
 	scenariosDir := flags.String("scenarios", "scenarios", "the scenarios directory")
-	only := flags.String("only", "", "comma-separated scenarios to run; default every one, node-notready last")
+	only := flags.String("only", "", "comma-separated scenarios to run; default every one the read node can diagnose, node-notready last")
 	kubeContext := flags.String("context", "kind-sre-lab", "the kubectl context")
 	tenant := flags.String("tenant", "ops", "the bots' tenant")
 	bot := flags.String("bot", "triage", "the bot whose timeline holds the incident events")
@@ -70,9 +70,9 @@ func runCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Print("\n" + markdown.Render(run, domain.Phase0))
-	if !run.Passes(domain.Phase0) {
-		return errors.New("the run does not clear phase 0's goals")
+	fmt.Print("\n" + markdown.Render(run, domain.ReadNode))
+	if !run.Passes(domain.ReadNode) {
+		return errors.New("the run does not clear the read node's goals")
 	}
 	return nil
 }
@@ -95,7 +95,7 @@ func chooseScenarios(lab shell.Lab, only string) ([]string, error) {
 	}
 	var ordered []string
 	for _, name := range all {
-		if name != lastScenario {
+		if name != lastScenario && !lab.NeedsWriteNode(name) {
 			ordered = append(ordered, name)
 		}
 	}

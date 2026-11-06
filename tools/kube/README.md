@@ -33,7 +33,7 @@ Every server:
 |---|---|---|
 | `doctor` | — | configuration, kubectl version, API server version, `auth can-i list pods` per allowed namespace; with writes, the `diff` program and `auth can-i patch deployments` too; each failure with its action |
 | `discover` | `namespace` | per namespace in scope: pods by phase and the ones not ready, deployments short of replicas, how many Warning events |
-| `get` | `kind`, `name`, `namespace`, `selector`, `limit` 1–200 (50), `raw` | summaries: name, phase, ready, restarts, reason, replicas; `raw` gives the objects without `managedFields` |
+| `get` | `kind`, `name`, `namespace`, `selector`, `limit` 1–200 (50), `raw` | summaries: name, phase, ready, restarts, reason, node and IP of a pod, replicas; `raw` gives the objects without `managedFields` |
 | `describe` | `kind`, `name`, `namespace` | the text of `kubectl describe`, 64 KiB at most |
 | `logs` | `pod`, `namespace`, `container`, `tail` 1–1000 (200), `since`, `previous` | the last lines, 256 KiB at most |
 | `events` | `namespace`, `object`, `warnings_only` (true), `limit` 1–200 (50) | newest first: type, reason, object, message, count, last seen |

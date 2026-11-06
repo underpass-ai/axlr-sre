@@ -2,7 +2,7 @@
 
 A brigade of bots that resolves Kubernetes and cloud incidents on [AXLR Bots](https://github.com/underpass-ai/axlr-bots): it receives the alert, diagnoses with evidence, proposes the fix as a diff, applies it when a person approves, verifies and writes the postmortem. The model proposes; the policy and the person decide; the panel shows everything.
 
-**Status:** phase 0. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)).
+**Status:** phase 1 started. The design is [docs/design.md](docs/design.md) (Spanish, revision 2.1). The lab, its ten scenarios and the two read-only bots run on a kind cluster; the first run is [below](#phase-0-run-31-october-2026), then the judged runs. **Phase 0 passed on 1 November 2026**: 10 / 10 correct under Jev's strict rule, 0 duplicates ([the run](#judged-run-1-november-2026-after-the-bot-fixes)). **Phase 1, 5 November:** the bots run on the read-only node `sre-ro` through `kube-mcp`; 8 / 9 correct in each of two runs, 0 duplicates, the read node's goal cleared ([the runs](#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). Next: the write node `sre-rw` and `fix` in `propose`, starting with drift.
 
 ```text
 Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident ──▶ triage ──▶ diag-k8s / diag-cloud ──▶ fix (approval) ──▶ verify ──▶ scribe
@@ -21,7 +21,8 @@ Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident �
 docs/design.md      the design and its decisions
 lab/                kind + kube-prometheus-stack, the lab's alert rules      (phase 0)
 scenarios/          ten faults: inject.sh, clear.sh, expected.md each        (phase 0)
-bots/               triage, diag-k8s                                         (phase 0)
+bots/               triage, diag-k8s, read-only through kube-mcp             (phase 1)
+nodes/sre-ro/       the read-only node on the host: RBAC, kubeconfig, unit   (phase 1)
 judge/              sre-judge: runs the scenarios, Jev judges the diagnoses          (phase 0)
 runbooks/           crashloop, oom, image-pull, … as catalog skills (planned)
 tools/              the MCP servers the bots call: mcp/ (the server), argo-workflows/, kube/, grafana/, opsgenie/ (with the mirror daemon), aws/, messaging/, postgres/ and redis/ (docs/tools-port.md)
@@ -32,12 +33,14 @@ deploy/             Helm: two node pods (read-only, write) (planned)
 
 ```bash
 lab/up.sh                                   # kind sre-lab, Prometheus, Alertmanager → the control plane
-bots/register.sh                            # triage and diag-k8s, enabled
+make -C tools install                       # kube-mcp and the other servers into ~/.local/bin
+nodes/sre-ro/install.sh                     # the read-only node: ServiceAccount axlr-sre-read, kube-mcp
+bots/register.sh                            # triage and diag-k8s on sre-ro, enabled
 scenarios/oom/inject.sh                     # wait about two minutes for the alert
 axlr-bots incident list
 axlr-bots incident get <incident-id>        # status, diagnosis, cost
 scenarios/oom/clear.sh                      # the resolved group closes the incident
-judge/run.sh                                # every scenario, judged by Jev; see judge/README.md
+judge/run.sh                                # every scenario sre-ro can diagnose (drift needs sre-rw), judged by Jev
 lab/down.sh
 ```
 
@@ -197,6 +200,74 @@ The judge's rule is stricter than the goal's wording: a diagnosis is *correct* o
 | crashloop lost its report three times to a console turn (memory reminder, then Jev's final check, the last without any `rollout`) | 2/6, 0/6 and 1/6 facts on the reruns | the mission rule above; the runtime fix is [underpass-ai/AXLR#189](https://github.com/underpass-ai/AXLR/pull/189) |
 | OpenRouter ran out of credit (HTTP 402) during the first full rerun | ten incidents escalated in 4 s, $0; that run is void and not recorded | topped up, run again |
 | A rerun within 30 minutes reopens the last incident of the same alert | the crashloop reruns show `reopened` | the full run started 28 minutes after the last resolve, so every scenario opened its own |
+
+## Judged runs, 5 November 2026, on the read-only node (phase 1)
+
+Same cluster, model (`anthropic/claude-haiku-5.5`), judge (`jev-1.13.0`) and `expected.md` as phase 0. What changed: the bots run on the node [sre-ro](nodes/sre-ro/README.md) and reach the cluster only through [kube-mcp](tools/kube/README.md), read-only, as the ServiceAccount `axlr-sre-read`; `local_exec kubectl` and its glob rules are gone (branch `sre-ro`). **Nine scenarios:** drift's evidence is `kubectl diff`, a server dry run that needs `patch`, so drift moves to the write node `sre-rw` and the `fix` bot ([scenarios/drift/needs-write-node](scenarios/drift/needs-write-node)). `judge/run.sh --soak-for 0`: the hour of resends tests the control plane's grouping, which did not change. Two full runs, never mixed; phase 0's verdicts are kept in [judge/results/phase-0/](judge/results/phase-0/).
+
+**8 / 9 correct in each run, a different miss each time; 0 duplicates; Open → Diagnosed 26–45 s. Both clear the read node's goal**, decided on 5 November: the nine scenarios fire, at least eight correct, 0 duplicates, under $1 (`ReadNode` in [judge/domain/goals.go](judge/domain/goals.go); `sre-judge` now judges every run against it). Under phase 0's goal of ten scenarios a nine-scenario run cannot pass, which is why the runs printed `passes false`; run 2's table below is `sre-judge report` against the new goal.
+
+### Run 2, 21:30–22:00 UTC: the bots as committed
+
+| Measure | Result | Read node goal |
+|---|---|---|
+| scenarios that fired their alert and opened one incident | 9 / 9 | 9 / 9 |
+| causes Jev found stated in full (partly) | 8 / 9 (1) | 8 / 9 |
+| duplicate incidents | 0 | 0 |
+| Open → Diagnosed | 26 s–35 s | < 3m0s |
+| cost of the whole run, children included | $0.194 | < $1 |
+| cost of judging (Jev) | $0.0023 | |
+| passes | true | |
+
+| Scenario | Alert | Trigger answers | Inject → settled | Open → settled | Cost | Resends | Duplicates | Other alerts | Facts stated | Fix proposed | Cause |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| cert-expiry | `LabCertificateExpiringSoon` | reopened | 176 s | 35 s | $0.0224 | 0 | 0 | — | 4 / 4 | yes | **correct** |
+| crashloop | `LabPodCrashLooping` | reopened | 381 s | 27 s | $0.0237 | 1 | 0 | — | 5 / 6 (not state) | yes | **partly** |
+| hpa-maxed | `LabHPAMaxedOut` | reopened | 175 s | 26 s | $0.0238 | 0 | 0 | — | 5 / 5 | no | **correct** |
+| image-pull | `LabImagePullBackOff` | reopened | 135 s | 28 s | $0.0196 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| missing-secret | `LabContainerConfigError` | reopened | 141 s | 34 s | $0.0216 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| netpol | `LabPodNotReady` | reopened | 161 s | 31 s | $0.0206 | 0 | 0 | — | 4 / 4 | yes | **correct** |
+| node-notready | `LabNodeNotReady` | reopened | 190 s | 34 s | $0.0229 | 0 | 0 | — | 4 / 4 | no | **correct** |
+| oom | `LabPodOOMKilled` | reopened | 180 s | 34 s | $0.0198 | 2 | 0 | — | 5 / 5 | yes | **correct** |
+| pvc-full | `LabVolumeFull` | reopened | 181 s | 35 s | $0.0197 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+
+Every incident says *reopened*: run 1 had resolved the same groups less than 30 minutes earlier, inside the reopen window. crashloop's miss is the fact *state*: the report says "crash-loops" and "Back-off restarting failed container", never `CrashLoopBackOff`, and Jev said *missing* with p 0.71 where it had said *stated* with p 0.66 in run 1 and in phase 0. That is a near coin, the judge-threshold item still open, not a regression of the bots; nothing was changed for it.
+
+### Run 1, 21:00–21:29 UTC
+
+| Scenario | Alert | Trigger answers | Inject → settled | Open → settled | Cost | Resends | Duplicates | Other alerts | Facts stated | Fix proposed | Cause |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| cert-expiry | `LabCertificateExpiringSoon` | opened | 140 s | 36 s | $0.0137 | 0 | 0 | — | 4 / 4 | yes | **correct** |
+| crashloop | `LabPodCrashLooping` | reopened | 291 s | 27 s | $0.0166 | 0 | 0 | — | 6 / 6 | yes | **correct** |
+| hpa-maxed | `LabHPAMaxedOut` | opened | 195 s | 44 s | $0.0186 | 0 | 0 | — | 4 / 5 (not source) | yes | **partly** |
+| image-pull | `LabImagePullBackOff` | opened | 140 s | 35 s | $0.0119 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| missing-secret | `LabContainerConfigError` | opened | 146 s | 31 s | $0.0097 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| netpol | `LabPodNotReady` | opened | 166 s | 36 s | $0.0123 | 0 | 0 | — | 4 / 4 | yes | **correct** |
+| node-notready | `LabNodeNotReady` | opened | 210 s | 45 s | $0.0152 | 0 | 0 | — | 4 / 4 | no | **correct** |
+| oom | `LabPodOOMKilled` | opened | 155 s | 29 s | $0.0109 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+| pvc-full | `LabVolumeFull` | opened | 181 s | 28 s | $0.0102 | 0 | 0 | — | 5 / 5 | yes | **correct** |
+
+hpa-maxed's child stopped at its 12 tool calls with no report (`budget exceeded: tool_calls 12 reached`); triage diagnosed alone and traced the load to a client IP, `10.244.2.63`, without naming the pod behind it, so the fact *source* (the Deployment `load`) was missing.
+
+### What changed between the runs
+
+| Change | Why |
+|---|---|
+| `triage` budgets 48 → 64 model and tool calls, a child 12 → 16 | listing an MCP server's tools (`axlr_tools`) costs calls that `local_exec` did not; hpa-maxed's child ran out at 12 |
+| runbook: *HPA at its maximum*, from the client IP in the scaled pods' logs to the pod with that IP and its Deployment's command | run 1 stopped at the IP |
+| kube-mcp: `get` shows a pod's `ip` and `node` | the IP-to-pod step is one summary, not a `raw` dump of every pod |
+
+### Cost
+
+$0.119 for run 1 and $0.194 for run 2, against $0.093 for phase 0's ten: about $0.022 an incident, from $0.009. Run 2's 64-call budget let every run read more, and every read is now a model turn through `axlr_call_tool`. Still far under the $1 a run of phase 0's goal.
+
+### What did not fit
+
+| Finding | Effect | What we did |
+|---|---|---|
+| The model first calls `kube/describe`, `kube/events`, `kube/logs` | AXLR rejects a prefixed name as an unknown plugin tool: three calls lost in the smoke run before it tried `describe` | the missions and the runbook say to call each tool by its exact name |
+| `kubectl diff` is not a read for RBAC | drift cannot be diagnosed on `sre-ro` | drift belongs to `sre-rw` and `fix`; `sre-judge` leaves it out by default, `--only drift` still runs it |
+| phase 0's goals are fixed at 10 scenarios | a nine-scenario run printed `passes false` | the read node's goal: nine fire, eight correct |
 
 ## License
 

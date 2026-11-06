@@ -1,20 +1,20 @@
 {
   "Scenario": "oom",
   "Alert": "LabPodOOMKilled",
-  "IncidentID": "inc-92ff202a7612c28132af8b32",
-  "Cycle": 1,
+  "IncidentID": "inc-c7979adf44d26897fe1cad87",
+  "Cycle": 2,
   "Status": "Diagnosed",
-  "Opened": 1,
-  "Reopened": 0,
+  "Opened": 0,
+  "Reopened": 1,
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T12:12:17.974649599+01:00",
-  "SettledAt": "2026-11-01T12:15:13.316615366+01:00",
-  "OpenToSettled": 44606010447,
-  "CostUSD": 0.009456835,
-  "Repeats": 0,
-  "Diagnosis": "CAUSE: Deployment `cart` in namespace `shop` (pod `cart-78d555d5-qmwth`, ReplicaSet `cart-78d555d5`, revision 1) has a 32Mi memory limit, but its command allocates a 60 MiB bytearray, so the kernel OOMKills container `cart` on every start.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab get -n shop pod cart-78d555d5-qmwth -o jsonpath=...` (my check): container `cart` limit `32Mi`, last terminated reason `OOMKilled`, exit code `137`, restartCount `4`.\n2. `kubectl --context kind-sre-lab describe -n shop pod cart-78d555d5-qmwth` (diag-k8s): the command is `python -c \"... cache = bytearray(60 * 1024 * 1024); ... time.sleep(36000)\"`, so the process needs about 60 MiB against a 32Mi limit. Events show `Warning BackOff ... Back-off restarting failed container cart` (x4).\n3. `kubectl --context kind-sre-lab get -n shop rs -l app=cart -o custom-columns=...` (diag-k8s): only one ReplicaSet, `cart-78d555d5`, REVISION 1, CHANGE-CAUSE `\u003cnone\u003e`, MEMLIMIT 32Mi. No earlier revision exists to compare against.\n4. `kubectl --context kind-sre-lab logs -n shop cart-78d555d5-qmwth -c cart --previous` (diag-k8s): fails with \"unable to retrieve container logs for containerd://15a92d84...\", so the startup line \"cart: loading 60 MiB cache\" is not confirmed from logs. The cause rests on the limit and the command.\n5. `kubectl --context kind-sre-lab top pods -n shop` (diag-k8s): exit code 1, \"Metrics not available for pod shop/cart-78d555d5-qmwth, age: 2m27s\", so no live memory usage is available.\n6. `kubectl --context kind-sre-lab diff -f desired/` (diag-k8s): exit code 2, \"namespaces \"drift-lab\" not found\". No drift result was obtained, so the desired manifests were not compared with the live cart limit.\n\nFIX (not applied): raise the `cart` container's memory limit and request in Deployment `shop/cart` from 32Mi to a value above the roughly 60 MiB the command allocates plus interpreter overhead (for example 128Mi), or reduce the allocation in the command.",
+  "InjectedAt": "2026-11-05T22:49:44.705036871+01:00",
+  "SettledAt": "2026-11-05T22:52:45.094919399+01:00",
+  "OpenToSettled": 34391723434,
+  "CostUSD": 0.019796170000000002,
+  "Repeats": 2,
+  "Diagnosis": "CAUSE: Deployment `cart` in namespace `shop` (pod `cart-78d555d5-4cvd7`, container `cart`) is OOM-killed because its only revision sets a 32Mi memory limit while the container's startup command allocates a 60 MiB bytearray.\n\nEVIDENCE:\n1. Pod `cart-78d555d5-4cvd7` (namespace shop): Last State Terminated, Reason OOMKilled, Exit Code 137, Restart Count 4, State CrashLoopBackOff, Limits memory 32Mi, Requests memory 32Mi (diag-k8s, describe pod `cart-78d555d5-4cvd7`; confirmed by my describe pod `cart-78d555d5-4cvd7`, namespace shop).\n2. ReplicaSet `cart-78d555d5` (namespace shop) is owned by Deployment `cart`, annotation deployment.kubernetes.io/revision \"1\", replicas 1, container limit memory 32Mi, and command `bytearray(60 * 1024 * 1024)` (diag-k8s, get replicaset `cart-78d555d5`, raw true; confirmed by my get replicaset `cart-78d555d5`, namespace shop, raw true).\n3. Events show Warning BackOff \"Back-off restarting failed container cart in pod cart-78d555d5-4cvd7_shop\", count 5 (diag-k8s, events, namespace shop, warnings only; my describe pod events show the same BackOff). The same pattern is reported on `cart-78d555d5-qtvxr` (diag-k8s, events, namespace shop).\n4. rollout_history of deployment `cart` (namespace shop) lists only REVISION 1 with CHANGE-CAUSE `\u003cnone\u003e`, so no earlier revision with a different limit exists (my rollout_history deployment `cart`, namespace shop; also diag-k8s).\n5. Logs of the previous container could not be retrieved (\"unable to retrieve container logs for containerd://e1c8295712b0f8c6a51bd91c93bfb8b33f04c8cec67ed54f20d77cf484a1b4a9\"), so the \"cache loaded\" line is unconfirmed (diag-k8s, logs pod `cart-78d555d5-4cvd7`, namespace shop, previous true, container cart).\n\nFIX (not applied): Raise the memory limit and request of container `cart` in deployment `cart`, namespace `shop`, to above the 60 MiB allocation plus interpreter overhead (for example 128Mi), or shrink the cache allocation in the command.",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.95,
-          "InputTokens": 1042,
-          "Took": 167087950
+          "Probability": 0.93,
+          "InputTokens": 1045,
+          "Took": 234342431
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 1036,
-          "Took": 118227194
+          "Probability": 1,
+          "InputTokens": 1039,
+          "Took": 128526498
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.9,
-          "InputTokens": 1047,
-          "Took": 143952135
+          "Probability": 0.94,
+          "InputTokens": 1050,
+          "Took": 131472538
         }
       },
       {
@@ -61,8 +61,8 @@
         "Choice": {
           "Option": "stated",
           "Probability": 1,
-          "InputTokens": 1042,
-          "Took": 136661234
+          "InputTokens": 1045,
+          "Took": 132489896
         }
       },
       {
@@ -72,9 +72,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.65,
-          "InputTokens": 1061,
-          "Took": 222082426
+          "Probability": 0.75,
+          "InputTokens": 1064,
+          "Took": 132290328
         }
       },
       {
@@ -84,9 +84,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.96,
-          "InputTokens": 1065,
-          "Took": 139726359
+          "Probability": 0.89,
+          "InputTokens": 1068,
+          "Took": 119122922
         }
       }
     ]

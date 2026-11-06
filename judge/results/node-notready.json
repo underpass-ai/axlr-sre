@@ -1,20 +1,20 @@
 {
   "Scenario": "node-notready",
   "Alert": "LabNodeNotReady",
-  "IncidentID": "inc-0285b99aac862bdb79f8a68e",
-  "Cycle": 1,
+  "IncidentID": "inc-dbd89bcffcb43f5f387cc4fb",
+  "Cycle": 2,
   "Status": "Diagnosed",
-  "Opened": 1,
-  "Reopened": 0,
+  "Opened": 0,
+  "Reopened": 1,
   "Repeated": 0,
   "Duplicates": 0,
   "OtherAlerts": null,
-  "InjectedAt": "2026-11-01T12:18:37.933243363+01:00",
-  "SettledAt": "2026-11-01T12:21:58.292498241+01:00",
-  "OpenToSettled": 44890271533,
-  "CostUSD": 0.010429985000000001,
+  "InjectedAt": "2026-11-05T22:56:19.155619619+01:00",
+  "SettledAt": "2026-11-05T22:59:29.525336102+01:00",
+  "OpenToSettled": 34440890028,
+  "CostUSD": 0.022872555000000003,
   "Repeats": 0,
-  "Diagnosis": "CAUSE: Node `sre-lab-worker2` (cluster-scoped, no namespace) is NotReady because its kubelet stopped posting node status and renewing its heartbeat Lease, so the node controller set Ready, MemoryPressure, DiskPressure and PIDPressure to Unknown and applied the unreachable taints.\n\nEVIDENCE:\n1. `kubectl --context kind-sre-lab describe node sre-lab-worker2`: Ready is `Unknown`, reason `NodeStatusUnknown`, message \"Kubelet stopped posting node status.\", last heartbeat 12:13:49 and transition 12:19:27 (+01:00). The three pressure conditions show the same reason, so the kubelet is silent rather than reporting a resource problem.\n2. `kubectl --context kind-sre-lab describe node sre-lab-worker2`: Taints are `node.kubernetes.io/unreachable:NoExecute` and `node.kubernetes.io/unreachable:NoSchedule`.\n3. `kubectl --context kind-sre-lab get lease sre-lab-worker2 -n kube-node-lease -o yaml`: `spec.renewTime: \"2026-11-01T11:18:36.176005Z\"` (12:18:36 +01:00) with `leaseDurationSeconds: 40`, so the heartbeat is stale.\n4. `kubectl --context kind-sre-lab describe node sre-lab-worker2`: the only Node event is `NodeNotReady` from `node-controller` (\"Node sre-lab-worker2 status is now: NodeNotReady\", x2 over 65m). No kubelet-side warning appears in the node's events.\n5. `kubectl --context kind-sre-lab get pods -A -o wide --field-selector spec.nodeName=sre-lab-worker2` (diag-k8s): the node still lists cert-manager x3, kube-system `kindnet-88psw` and `kube-proxy-74ls5`, and `shop/catalog-6b8cf764b7-xvrnl` at 0/1 `ImagePullBackOff`. The kube-system and cert-manager pods show `1 (3h11m ago)` restarts, which predates this outage and is not conclusive on its own.\n6. Not established: why the kubelet stopped. Its logs (`journalctl -u kubelet`) are not reachable with the allowed kubectl verbs.\n\nFIX (not applied): on the host, inspect the kubelet inside the sre-lab-worker2 kind node container (`systemctl status kubelet`, `journalctl -u kubelet --since \"-1h\"`), then restart the kubelet there once its failure is understood.",
+  "Diagnosis": "CAUSE: Node sre-lab-worker2 (cluster-scoped, no namespace) is NotReady because its kubelet stopped posting node status, so the node-controller set Ready, MemoryPressure, DiskPressure and PIDPressure to Unknown and tainted the node unreachable; the reason the kubelet went silent is not visible with read-only access.\nEVIDENCE:\n1. Node sre-lab-worker2: Ready=Unknown, reason NodeStatusUnknown, message \"Kubelet stopped posting node status.\", last heartbeat Thu, 05 Nov 2026 22:53:58 +0100, transition 22:57:09 +0100 (describe node sre-lab-worker2, namespace shop, run by me and confirmed by diag-k8s in task-5f38c00c095d03742aaf68f8).\n2. Taints node.kubernetes.io/unreachable:NoExecute and node.kubernetes.io/unreachable:NoSchedule; Events show \"Normal NodeNotReady ... (x4 over 4d11h) node-controller\", latest 2m10s ago (describe node sre-lab-worker2, my call and diag-k8s's describe).\n3. Only this node is affected: sre-lab-control-plane Ready=True, sre-lab-worker Ready=True, sre-lab-worker2 Ready=Unknown (get node, via diag-k8s task-5f38c00c095d03742aaf68f8).\n4. Five pods are still scheduled on it, all in cert-manager (cert-manager-5c746444c8-fxmnw, cert-manager-cainjector-5bb9799457-q8qlr, cert-manager-webhook-df8d46c58-jm5h7) and kube-system (kindnet-88psw, kube-proxy-74ls5), none in shop; Kubelet Version v1.36.1, containerd://2.3.1 (describe node sre-lab-worker2, my call).\n5. Events in namespace shop (warnings only): 23 warnings, none about the node or its kubelet (events, via diag-k8s task-5f38c00c095d03742aaf68f8).\n6. Not checked: the Lease sre-lab-worker2 in kube-node-lease is forbidden for axlr-sre-read (describe node sre-lab-worker2, my call), so the kubelet heartbeat and the kubelet logs were not read.\nFIX (not applied): on the host of sre-lab-worker2, check and restart the kubelet (`systemctl status kubelet`, then `systemctl restart kubelet`) and confirm the node returns to Ready=True and the unreachable taints are removed.",
   "Score": {
     "Verdicts": [
       {
@@ -24,9 +24,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.96,
-          "InputTokens": 1027,
-          "Took": 167011550
+          "Probability": 0.9,
+          "InputTokens": 1048,
+          "Took": 172674533
         }
       },
       {
@@ -36,9 +36,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.98,
-          "InputTokens": 1031,
-          "Took": 140314742
+          "Probability": 0.99,
+          "InputTokens": 1052,
+          "Took": 118216820
         }
       },
       {
@@ -48,9 +48,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.99,
-          "InputTokens": 1047,
-          "Took": 169356839
+          "Probability": 0.96,
+          "InputTokens": 1068,
+          "Took": 130885515
         }
       },
       {
@@ -60,9 +60,9 @@
         },
         "Choice": {
           "Option": "stated",
-          "Probability": 0.91,
-          "InputTokens": 1039,
-          "Took": 199665284
+          "Probability": 0.83,
+          "InputTokens": 1060,
+          "Took": 144156305
         }
       },
       {
@@ -72,9 +72,9 @@
         },
         "Choice": {
           "Option": "missing",
-          "Probability": 0.78,
-          "InputTokens": 1048,
-          "Took": 135472022
+          "Probability": 0.52,
+          "InputTokens": 1069,
+          "Took": 139536240
         }
       }
     ]
