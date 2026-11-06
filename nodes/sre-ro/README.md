@@ -7,7 +7,7 @@ axlr-bots ──socket──▶ axlr-node --node-id sre-ro --dedicated --bus dir
                          │  --axlr-mcp-config ~/.config/axlr-sre/sre-ro/mcp.json
                          ▼
                       axlr-tui (triage, diag-k8s) ──stdio──▶ kube-mcp ──▶ kubectl ──▶ API server
-                                                               KUBE_NAMESPACES=shop    token of axlr-sre-read
+                                                    KUBE_NAMESPACES=shop,drift-lab    token of axlr-sre-read
 ```
 
 | What | Where |
@@ -27,7 +27,7 @@ After `lab/up.sh` and `make -C tools install`:
 nodes/sre-ro/install.sh
 ```
 
-It applies `rbac.yaml` with the admin context, mints a token (`TOKEN_TTL`, 720 h by default), writes the files above, refuses to go on if the identity can read Secrets or cannot list pods, and starts the unit. Run it again to renew the token. Then `bots/register.sh` copies the runbook into this node's workspaces and registers the bots.
+It applies `rbac.yaml` with the admin context, mints a token (`TOKEN_TTL`, 720 h by default), writes the files above, refuses to go on if the identity can read Secrets or cannot list pods, and starts the unit. The steps live in [../install-node.sh](../install-node.sh), shared with the write node [sre-rw](../sre-rw/README.md); `SRE_NAMESPACES` is `shop,drift-lab` by default. Run it again to renew the token. Then `bots/register.sh` copies the runbook into this node's workspaces and registers the bots.
 
 Check: `axlr-bots node list` shows `sre-ro` `Online` with `role=sre-ro` and `dedicated`; `kubectl --kubeconfig ~/.config/axlr-sre/sre-ro/kubeconfig auth can-i get secrets -n shop` says `no`.
 
@@ -37,4 +37,4 @@ With NATS the broker maps each node to the user its certificate names, and this 
 
 ## What it cannot do
 
-`kubectl diff` is a server-side dry run that needs `patch`, which this identity does not have; `kube-mcp` publishes `diff` only with writes. So the scenario `drift` belongs to the write node (`sre-rw`) and the `fix` bot, and `sre-judge` leaves it out of its default run. `top` is not a tool: `describe hpa` carries the current and target utilisation.
+`kubectl diff` is a server-side dry run that needs `patch`, which this identity does not have; `kube-mcp` publishes `diff` only with writes. So triage diagnoses `drift` by comparing the live object with `desired/` by hand, the write node's `fix` bot proves it with `diff` and proposes the fix, and `sre-judge` leaves the scenario out of its default run. `top` is not a tool: `describe hpa` carries the current and target utilisation.

@@ -1,6 +1,6 @@
 # The judge
 
-`sre-judge` runs the scenarios against the bots and has Jev, TypeSafe's judgement model, say whether each diagnosis states the facts the scenario expects. It measures phase 0's exit numbers (design §11, §12.1): causes correct, duplicates, Open → Diagnosed, cost.
+`sre-judge` runs the scenarios against the bots and has Jev, TypeSafe's judgement model, say whether each diagnosis states the facts the scenario expects; for a write-node scenario, whether `fix`'s proposal does. It measures the exit numbers of design §11 and §12: causes (or proposals) correct, duplicates, Open → Diagnosed, cost.
 
 ```text
 for each scenario                                   Jev, one question per fact
@@ -19,7 +19,14 @@ go run ./cmd/sre-judge report       # the tables again, from judge/results
 go run ./cmd/sre-judge score --expected scenarios/oom/expected.md --incident <id>   # one incident, offline
 ```
 
-The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or from `~/.config/axlr-bots/env` (the node's file) and never prints it. The control plane is read over its socket, as the `axlr-bots` CLI does. Exit 1 when the run does not clear the read node's goals: the nine scenarios it can diagnose fire, at least eight correct, 0 duplicates, under $1 (`ReadNode` in `domain/goals.go`, decided on 5 November 2026; phase 0's ten-scenario bar is kept as `Phase0`).
+The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or from `~/.config/axlr-bots/env` (the node's file) and never prints it. The control plane is read over its socket, as the `axlr-bots` CLI does; the judge's one write is a task for `fix`. Each node's scenarios are judged against that node's goals (`domain/goals.go`), in a table of their own when the results hold both, and exit 1 says one node's part does not clear them:
+
+| Goals | Scenarios | Bar |
+|---|---|---|
+| `ReadNode` (decided 5 November 2026) | the nine sre-ro diagnoses | all fire, at least eight causes correct, 0 duplicates, under $1 |
+| `WriteNode` (set 6 November 2026) | drift, sre-rw's only one so far | it fires, and `fix`'s proposal states every fact |
+
+Phase 0's ten-scenario bar is kept as `Phase0`.
 
 | Flag | Default | |
 |---|---|---|
@@ -28,8 +35,9 @@ The Jev key is `TYPESAFE_API_KEY`; `run.sh` reads it from the environment or fro
 | `--soak`, `--soak-for` | `image-pull`, `60m` from `run.sh` | the scenario left firing after its diagnosis, and for how long |
 | `--out` | `judge/results` | one JSON per scenario as it lands; a run that breaks resumes with `--only` |
 | `--model` | `jev-1.13.0` | the Jev version, pinned, the one AXLR's `axlr-v2` judge policy and axlr-bots' Jev runtime use |
+| `--fix-bot`, `--fix-timeout` | `fix`, `10m` | the bot that proposes a write-node scenario's fix, and how long its task may take |
 
-A scenario whose directory holds `needs-write-node` is left out of the default run: only the write node can diagnose it (drift: `kubectl diff` needs `patch`). `--only` still runs it. Phase 0's verdicts stay in `judge/results/phase-0/`; `report` reads only the files directly under `--out`.
+A scenario whose directory holds `needs-write-node` is left out of the default run; `--only` runs it. Its incident is still triage's, on the read node; once it is `Diagnosed` the judge submits a task to `fix` with triage's diagnosis (key `sre-judge:<incident>:<cycle>:fix`), waits for it to end, and Jev judges `fix`'s answer instead of the diagnosis. That is the control plane's job in design §4 (Diagnosed → Proposed), which axlr-bots does not do yet; the judge stands in for it. The fix task's cost is added to the scenario's. Phase 0's verdicts stay in `judge/results/phase-0/`; `report` reads only the files directly under `--out`.
 
 `node-notready` runs last: it stops a worker's kubelet, and the faults before it schedule onto that worker. After every `clear.sh` the judge waits for every node `Ready`.
 
@@ -41,9 +49,9 @@ One question to Jev per row of `expected.md`: the state is the fact and the diag
 |---|---|
 | every cause fact `stated` | **correct** |
 | some stated, none contradicted | **partly** |
-| any contradicted, or none stated, or no diagnosis (`Escalated`, timeout) | **wrong** |
+| any contradicted, or none stated, or no diagnosis (`Escalated`, timeout), or a write-node scenario's fix task ended without an answer | **wrong** |
 
-The fix row is shown, not counted. The tables list every fact's verdict, so a person can audit Jev. The question says a fact is stated only when every part of it is: a compound row (`load … from the Deployment load`) was judged by its gist until it was split in two, which is why `expected.md` lists one fact per row.
+The fix row is shown, not counted. A write-node scenario's `expected.md` names its proposal and rollback rows otherwise (`proposal (not applied)`, `rollback`), so they count. The tables list every fact's verdict, so a person can audit Jev. The question says a fact is stated only when every part of it is: a compound row (`load … from the Deployment load`) was judged by its gist until it was split in two, which is why `expected.md` lists one fact per row.
 
 ## What it measures
 
@@ -71,7 +79,7 @@ judge/adapters/controlplane/   the operator API over the socket
 judge/adapters/shell/    inject.sh, clear.sh, expected.md, kubectl wait
 judge/adapters/markdown/ the tables
 judge/adapters/results/  one JSON per scenario
-judge/run.sh             the phase 0 run
+judge/run.sh             the judged run
 ```
 
 `go test -race ./...`; every package at 80 % or more (CI checks it).

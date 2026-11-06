@@ -23,10 +23,15 @@ type Result struct {
 	SettledAt   time.Time
 	// OpenToSettled comes from the bot's timeline, not from polling.
 	OpenToSettled time.Duration
-	// CostUSD is the incident's cost with its delegated children added.
+	// CostUSD is the incident's cost with its delegated children added,
+	// and the proposal's for a write-node scenario.
 	CostUSD   float64
 	Repeats   int
 	Diagnosis string
+	// WriteNode marks a scenario only the write node handles: its Score is
+	// fix's proposal's, not triage's diagnosis's.
+	WriteNode bool      `json:",omitempty"`
+	Proposal  *Proposal `json:",omitempty"`
 	Score     Score
 	// Error says why the scenario has no verdict: a timeout, a lab fault.
 	Error string
@@ -45,10 +50,14 @@ func (r Result) InjectToSettled() time.Duration {
 // incident.
 func (r Result) Fired() bool { return r.IncidentID != "" }
 
-// Outcome is the verdict on the cause; a scenario without a diagnosis is
-// wrong.
+// Outcome is the verdict on the cause, or on the proposal for a
+// write-node scenario; a scenario without a diagnosis, or without a
+// proposal when it needs one, is wrong.
 func (r Result) Outcome() Outcome {
 	if r.Error != "" || r.Status != IncidentDiagnosed {
+		return Wrong
+	}
+	if r.WriteNode && (r.Proposal == nil || !r.Proposal.Completed()) {
 		return Wrong
 	}
 	return r.Score.Outcome()

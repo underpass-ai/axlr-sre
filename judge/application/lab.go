@@ -14,4 +14,7 @@ type Lab interface {
 	// Clear runs the scenario's clear.sh and waits for the cluster to
 	// settle (every node Ready).
 	Clear(ctx context.Context, scenario string) error
+	// NeedsWriteNode reports a scenario only the write node handles: its
+	// verdict is the fix bot's proposal.
+	NeedsWriteNode(scenario string) bool
 }

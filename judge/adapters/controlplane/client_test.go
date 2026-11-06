@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -31,14 +32,30 @@ func api() http.Handler {
 		_, _ = w.Write([]byte(`[{"type":"bot.trigger.fired","createdAt":"2026-11-01T10:00:00Z"},{"type":"incident.opened","incidentId":"inc-1","createdAt":"2026-11-01T10:00:01Z"}]`))
 	})
 	mux.HandleFunc("GET /v1/tasks/{id}", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"id":"t1","children":["c1"],"executionIds":["e1"]}`))
+		_, _ = w.Write([]byte(`{"id":"t1","status":"Completed","children":["c1"],"executionIds":["e1"]}`))
 	})
 	mux.HandleFunc("GET /v1/tasks/{id}/executions", func(w http.ResponseWriter, r *http.Request) {
 		if r.PathValue("id") == "broken" {
 			_, _ = w.Write([]byte(`{"not":"a list"}`))
 			return
 		}
-		_, _ = w.Write([]byte(`[{"id":"e1","usage":{"costUsd":0.002}}]`))
+		_, _ = w.Write([]byte(`[{"id":"e1","usage":{"costUsd":0.002},"result":{"answer":"CAUSE: y"}}]`))
+	})
+	mux.HandleFunc("POST /v1/bots/{id}/tasks", func(w http.ResponseWriter, r *http.Request) {
+		var body struct{ Objective, IdempotencyKey string }
+		if r.Header.Get("Content-Type") != "application/json" || json.NewDecoder(r.Body).Decode(&body) != nil || body.Objective == "" {
+			http.Error(w, "body", http.StatusBadRequest)
+			return
+		}
+		switch body.IdempotencyKey {
+		case "new":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"task":{"id":"task-` + r.PathValue("id") + `"},"created":true}`))
+		case "seen":
+			_, _ = w.Write([]byte(`{"task":{"id":"task-old"},"created":false}`))
+		default:
+			_, _ = w.Write([]byte(`{"created":false}`))
+		}
 	})
 	return mux
 }
@@ -66,14 +83,26 @@ func TestClientReadsTheOperatorAPI(t *testing.T) {
 				t.Fatalf("only incident events: %+v %v", events, err)
 			}
 			task, err := client.Task(ctx, "t1")
-			if err != nil || task.Children[0] != "c1" || task.ExecutionIDs[0] != "e1" {
+			if err != nil || task.Status != "Completed" || task.Children[0] != "c1" || task.ExecutionIDs[0] != "e1" {
 				t.Fatalf("%+v %v", task, err)
 			}
 			executions, err := client.Executions(ctx, "t1")
-			if err != nil || len(executions) != 1 || executions[0].CostUSD != 0.002 {
+			if err != nil || len(executions) != 1 || executions[0].CostUSD != 0.002 || executions[0].Answer != "CAUSE: y" {
 				t.Fatalf("%+v %v", executions, err)
 			}
 			if _, err := client.Executions(ctx, "broken"); err == nil || !strings.Contains(err.Error(), "not the JSON") {
+				t.Fatalf("%v", err)
+			}
+			if id, err := client.SubmitTask(ctx, "fix", "propose", "new"); err != nil || id != "task-fix" {
+				t.Fatalf("a created task: %q %v", id, err)
+			}
+			if id, err := client.SubmitTask(ctx, "fix", "propose", "seen"); err != nil || id != "task-old" {
+				t.Fatalf("a key seen before answers its task: %q %v", id, err)
+			}
+			if _, err := client.SubmitTask(ctx, "fix", "propose", "odd"); err == nil || !strings.Contains(err.Error(), "no task id") {
+				t.Fatalf("%v", err)
+			}
+			if _, err := client.SubmitTask(ctx, "fix", "", "new"); err == nil || !strings.Contains(err.Error(), "400") {
 				t.Fatalf("%v", err)
 			}
 		})

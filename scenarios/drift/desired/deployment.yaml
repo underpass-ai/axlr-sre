@@ -1,0 +1,18 @@
+# The desired state of drift-lab/web, from the 29 October drift bot's lab
+# (axlr-bots examples/k8s-drift, now in axlr-bots-examples). The Namespace
+# document is left out: kube-mcp's diff refuses a Namespace, and inject.sh
+# makes it.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web, namespace: drift-lab, labels: {app: web}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: web}}
+  template:
+    metadata: {labels: {app: web}}
+    spec:
+      containers:
+        - name: web
+          image: docker.io/library/nginx:1.27-alpine
+          ports: [{containerPort: 80}]
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 64Mi}}

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Phase 0's judged run: every scenario, image-pull left firing an hour
-# for the resends, Jev judging each diagnosis. The Jev key comes from the
+# The judged run: every scenario the read node can diagnose, image-pull left firing an hour
+# for the resends, Jev judging each diagnosis (or fix's proposal, for a
+# write-node scenario named with --only). The Jev key comes from the
 # environment or from the node's env file; it is never printed.
 #
 #   judge/run.sh                       the whole run

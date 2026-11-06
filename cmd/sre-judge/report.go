@@ -7,7 +7,6 @@ import (
 
 	"github.com/underpass-ai/axlr-sre/judge/adapters/markdown"
 	"github.com/underpass-ai/axlr-sre/judge/adapters/results"
-	"github.com/underpass-ai/axlr-sre/judge/domain"
 )
 
 func reportCommand(args []string) error {
@@ -24,9 +23,9 @@ func reportCommand(args []string) error {
 	if len(run.Results) == 0 {
 		return errors.New("no results under " + c.out)
 	}
-	fmt.Print(markdown.Render(run, domain.ReadNode))
-	if !run.Passes(domain.ReadNode) {
-		return errors.New("the run does not clear the read node's goals")
+	fmt.Print(markdown.RenderByNode(run))
+	if !run.PassesByNode() {
+		return errors.New("the run does not clear its nodes' goals")
 	}
 	return nil
 }

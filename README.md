@@ -21,9 +21,10 @@ Alertmanager ──webhook──▶ axlr-bots control plane ──▶ Incident �
 docs/design.md      the design and its decisions
 lab/                kind + kube-prometheus-stack, the lab's alert rules      (phase 0)
 scenarios/          ten faults: inject.sh, clear.sh, expected.md each        (phase 0)
-bots/               triage, diag-k8s, read-only through kube-mcp             (phase 1)
+bots/               triage, diag-k8s read-only; fix proposes, through kube-mcp (phase 1)
 nodes/sre-ro/       the read-only node on the host: RBAC, kubeconfig, unit   (phase 1)
-judge/              sre-judge: runs the scenarios, Jev judges the diagnoses          (phase 0)
+nodes/sre-rw/       the write node: patch for diff, reads and diff only      (phase 1)
+judge/              sre-judge: runs the scenarios, Jev judges the diagnoses and fix's proposals
 runbooks/           crashloop, oom, image-pull, … as catalog skills (planned)
 tools/              the MCP servers the bots call: mcp/ (the server), argo-workflows/, kube/, grafana/, opsgenie/ (with the mirror daemon), aws/, messaging/, postgres/ and redis/ (docs/tools-port.md)
 deploy/             Helm: two node pods (read-only, write) (planned)
@@ -35,12 +36,14 @@ deploy/             Helm: two node pods (read-only, write) (planned)
 lab/up.sh                                   # kind sre-lab, Prometheus, Alertmanager → the control plane
 make -C tools install                       # kube-mcp and the other servers into ~/.local/bin
 nodes/sre-ro/install.sh                     # the read-only node: ServiceAccount axlr-sre-read, kube-mcp
-bots/register.sh                            # triage and diag-k8s on sre-ro, enabled
+nodes/sre-rw/install.sh                     # the write node: ServiceAccount axlr-sre-write, kube-mcp with diff
+bots/register.sh                            # triage and diag-k8s on sre-ro, fix on sre-rw, enabled
 scenarios/oom/inject.sh                     # wait about two minutes for the alert
 axlr-bots incident list
 axlr-bots incident get <incident-id>        # status, diagnosis, cost
 scenarios/oom/clear.sh                      # the resolved group closes the incident
-judge/run.sh                                # every scenario sre-ro can diagnose (drift needs sre-rw), judged by Jev
+judge/run.sh                                # every scenario sre-ro can diagnose, judged by Jev
+judge/run.sh --only drift                   # drift: triage diagnoses, fix proposes on sre-rw, Jev judges the proposal
 lab/down.sh
 ```
 

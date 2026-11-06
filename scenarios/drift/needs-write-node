@@ -1,4 +1,6 @@
-Only the write node (sre-rw) diagnoses drift: its evidence is `kubectl diff -f desired/`, a
-server-side dry run that needs `patch`, which the read node's ServiceAccount axlr-sre-read does not
-have. sre-judge leaves this scenario out of its default run; `--only drift` still runs it.
-Decided on 5 November 2026: drift is the first scenario of the `fix` bot on sre-rw.
+Only the write node (sre-rw) proposes the fix for drift: its evidence is kube-mcp's diff of
+desired/, a server-side dry run that needs patch, which the read node's ServiceAccount
+axlr-sre-read does not have. Decided on 5 November 2026: drift is the first scenario of the `fix`
+bot on sre-rw. sre-judge leaves this scenario out of its default run; `--only drift` runs it,
+waits for triage's diagnosis, submits a `fix` task with it (standing in for the control plane,
+which does not launch the fix phase yet) and scores fix's proposal against expected.md.
