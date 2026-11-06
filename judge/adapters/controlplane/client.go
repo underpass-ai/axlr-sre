@@ -1,8 +1,10 @@
 // Package controlplane reads axlr-bots' operator API over its Unix socket,
 // as the axlr-bots CLI does: no token, the socket's permissions decide.
+// Its one write is a task for the fix bot.
 package controlplane
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -112,37 +114,70 @@ func (c *Client) Events(ctx context.Context, bot string, limit int) (domain.Time
 func (c *Client) Task(ctx context.Context, id string) (domain.Task, error) {
 	var wire struct {
 		ID           string   `json:"id"`
+		Status       string   `json:"status"`
 		Children     []string `json:"children"`
 		ExecutionIDs []string `json:"executionIds"`
 	}
 	if err := c.get(ctx, "/v1/tasks/"+url.PathEscape(id), &wire); err != nil {
 		return domain.Task{}, err
 	}
-	return domain.Task{ID: wire.ID, Children: wire.Children, ExecutionIDs: wire.ExecutionIDs}, nil
+	return domain.Task{ID: wire.ID, Status: wire.Status, Children: wire.Children, ExecutionIDs: wire.ExecutionIDs}, nil
 }
 
-// Executions reads a task's executions with what each cost.
+// Executions reads a task's executions with what each cost and answered.
 func (c *Client) Executions(ctx context.Context, taskID string) ([]domain.Execution, error) {
 	var wire []struct {
 		ID    string `json:"id"`
 		Usage struct {
 			CostUSD float64 `json:"costUsd"`
 		} `json:"usage"`
+		Result struct {
+			Answer string `json:"answer"`
+		} `json:"result"`
 	}
 	if err := c.get(ctx, "/v1/tasks/"+url.PathEscape(taskID)+"/executions", &wire); err != nil {
 		return nil, err
 	}
 	executions := make([]domain.Execution, 0, len(wire))
 	for _, w := range wire {
-		executions = append(executions, domain.Execution{ID: w.ID, CostUSD: w.Usage.CostUSD})
+		executions = append(executions, domain.Execution{ID: w.ID, CostUSD: w.Usage.CostUSD, Answer: w.Result.Answer})
 	}
 	return executions, nil
 }
 
+// SubmitTask gives the bot a task under an idempotency key: the same key
+// answers the task it made before.
+func (c *Client) SubmitTask(ctx context.Context, bot, objective, key string) (string, error) {
+	body, err := json.Marshal(map[string]string{"objective": objective, "idempotencyKey": key})
+	if err != nil {
+		return "", err
+	}
+	var wire struct {
+		Task struct {
+			ID string `json:"id"`
+		} `json:"task"`
+	}
+	path := "/v1/bots/" + url.PathEscape(bot) + "/tasks"
+	if err := c.do(ctx, http.MethodPost, path, bytes.NewReader(body), &wire); err != nil {
+		return "", err
+	}
+	if wire.Task.ID == "" {
+		return "", errors.New("control plane answered no task id for " + path)
+	}
+	return wire.Task.ID, nil
+}
+
 func (c *Client) get(ctx context.Context, path string, into any) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	return c.do(ctx, http.MethodGet, path, nil, into)
+}
+
+func (c *Client) do(ctx context.Context, method, path string, body io.Reader, into any) error {
+	request, err := http.NewRequestWithContext(ctx, method, c.base+path, body)
 	if err != nil {
 		return err
+	}
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
 	}
 	response, err := c.http.Do(request)
 	if err != nil {
@@ -153,7 +188,7 @@ func (c *Client) get(ctx context.Context, path string, into any) error {
 	if err != nil {
 		return fmt.Errorf("control plane: %w", err)
 	}
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
 		return fmt.Errorf("control plane answered HTTP %d for %s", response.StatusCode, path)
 	}
 	if err := json.Unmarshal(data, into); err != nil {

@@ -1,0 +1,116 @@
+{
+  "Scenario": "drift",
+  "Alert": "LabDeploymentDrift",
+  "IncidentID": "inc-ef27996c1608a357878fa9ad",
+  "Cycle": 3,
+  "Status": "Diagnosed",
+  "Opened": 0,
+  "Reopened": 1,
+  "Repeated": 0,
+  "Duplicates": 0,
+  "OtherAlerts": null,
+  "InjectedAt": "2026-11-06T08:31:52.158858661+01:00",
+  "SettledAt": "2026-11-06T08:34:13.186223945+01:00",
+  "OpenToSettled": 29481142732,
+  "CostUSD": 0.03061122,
+  "Repeats": 0,
+  "Diagnosis": "CAUSE: Deployment `web` in namespace `drift-lab` has drifted from its desired state: the live spec runs `docker.io/library/nginx:1.26-alpine` with 3 replicas, while the desired manifest (`desired/deployment.yaml`) specifies `nginx:1.27-alpine` with 2 replicas.\n\nEVIDENCE:\n- Live spec (my `get` deployment `web`, drift-lab, raw true): `spec.replicas: 3`, container `web` image `docker.io/library/nginx:1.26-alpine`, `metadata.generation: 3`, `observedGeneration: 3`, revision annotation `deployment.kubernetes.io/revision: \"2\"`, and no `kubernetes.io/change-cause` annotation.\n- Desired state (my `get` deployment `web`, raw true, `kubectl.kubernetes.io/last-applied-configuration` annotation; diag-k8s also read `desired/deployment.yaml` via local_read): `replicas: 2`, image `docker.io/library/nginx:1.27-alpine`, requests cpu 10m / memory 32Mi, limit memory 64Mi. The live resources match this; only replicas and image differ.\n- Status (my `get` deployment `web`, raw true): `readyReplicas: 3`, `availableReplicas: 3`, `updatedReplicas: 3`; Available reason `MinimumReplicasAvailable`; Progressing reason `NewReplicaSetAvailable` for ReplicaSet `web-7688bbc54d`. The drifted spec is what is running.\n- ReplicaSet change (diag-k8s `events`, drift-lab, warnings_only false, not re-checked by me): `ScalingReplicaSet` \"Scaled up replica set web-7688bbc54d from 2 to 3\" and \"Scaled down replica set web-6c66b6776c from 3 to 2\"; the previous ReplicaSet `web-6c66b6776c` (image `nginx:1.27-alpine`) was scaled to 0 at 07:31:54.\n- Health (diag-k8s `events`, not re-checked by me): no Warning events in drift-lab; pods are Running with no restarts, so the drift is a spec change, not a crash loop.\n\nFIX (not applied): reapply `desired/deployment.yaml` to `drift-lab/web` (`replicas: 2`, image `docker.io/library/nginx:1.27-alpine`), with the diff and rollback to be proposed by the `fix` bot.",
+  "WriteNode": true,
+  "Proposal": {
+    "TaskID": "task-b398c92e1921c0645c36cf02",
+    "Status": "Completed",
+    "Answer": "CAUSE: Deployment `web` in namespace `drift-lab` has drifted from `desired/deployment.yaml`: the live spec runs `docker.io/library/nginx:1.27-alpine`... no, it runs `docker.io/library/nginx:1.26-alpine` with 3 replicas, where the desired manifest has 2 replicas and `nginx:1.27-alpine`.\n\nDIFF: diff tool on desired/deployment.yaml, server-side dry run: differences: true\n- spec.replicas: 3 -\u003e 2\n- spec.template.spec.containers[name=web].image: docker.io/library/nginx:1.26-alpine -\u003e docker.io/library/nginx:1.27-alpine\n- metadata.generation: 3 -\u003e 4 (server-side bookkeeping, follows from the spec change, not a separate drift)\n\nPROPOSAL (not applied): kubectl apply -n drift-lab -f desired/deployment.yaml\n\nROLLBACK: live values recorded just now (get deployment/web, drift-lab, raw true): spec.replicas=3, container web image=docker.io/library/nginx:1.26-alpine, revision annotation deployment.kubernetes.io/revision=\"2\", generation 3, readyReplicas=3, availableReplicas=3, updatedReplicas=3.\nCommands that restore them:\n- kubectl -n drift-lab scale deploy/web --replicas=3\n- kubectl -n drift-lab set image deploy/web web=docker.io/library/nginx:1.26-alpine\nNote: the rollback is a second rollout, not a revert to the earlier revision. Alternatively, `kubectl -n drift-lab rollout undo deploy/web` returns to the previous ReplicaSet web-6c66b6776c, which carries nginx:1.27-alpine, so it is not the live state and should not be used as the rollback.\n\nCHECK: diff of desired/deployment.yaml on drift-lab answers differences: false; `kubectl -n drift-lab rollout status deploy/web` completes; readyReplicas and availableReplicas equal 2 with the image nginx:1.27-alpine.",
+    "CostUSD": 0.0030060649999999996,
+    "SubmittedAt": "2026-11-06T08:34:13.201268018+01:00",
+    "EndedAt": "2026-11-06T08:34:28.208478919+01:00"
+  },
+  "Score": {
+    "Verdicts": [
+      {
+        "Fact": {
+          "Name": "object",
+          "Value": "Deployment `web`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.88,
+          "InputTokens": 871,
+          "Took": 177032040
+        }
+      },
+      {
+        "Fact": {
+          "Name": "namespace",
+          "Value": "`drift-lab`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 1,
+          "InputTokens": 873,
+          "Took": 153571531
+        }
+      },
+      {
+        "Fact": {
+          "Name": "field 1",
+          "Value": "`spec.replicas`: live `3`, desired `2`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.95,
+          "InputTokens": 885,
+          "Took": 142275249
+        }
+      },
+      {
+        "Fact": {
+          "Name": "field 2",
+          "Value": "image: live `nginx:1.26-alpine`, desired `nginx:1.27-alpine`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.89,
+          "InputTokens": 897,
+          "Took": 123336155
+        }
+      },
+      {
+        "Fact": {
+          "Name": "evidence",
+          "Value": "the `diff` tool on `desired/deployment.yaml` answered `differences: true` (a server-side dry run; nothing changed)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.98,
+          "InputTokens": 902,
+          "Took": 136740627
+        }
+      },
+      {
+        "Fact": {
+          "Name": "proposal (not applied)",
+          "Value": "apply `desired/deployment.yaml` to `drift-lab` (`kubectl apply -f desired/deployment.yaml`)"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.7,
+          "InputTokens": 901,
+          "Took": 113537043
+        }
+      },
+      {
+        "Fact": {
+          "Name": "rollback",
+          "Value": "restore the live state recorded before the apply: 3 replicas and image `nginx:1.26-alpine`"
+        },
+        "Choice": {
+          "Option": "stated",
+          "Probability": 0.66,
+          "InputTokens": 892,
+          "Took": 127954241
+        }
+      }
+    ]
+  },
+  "Error": ""
+}

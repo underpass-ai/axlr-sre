@@ -238,6 +238,16 @@ Placement por `labels`: `{"role": "sre-ro"}` y `{"role": "sre-rw"}`. Un Job por 
 
 **Hecho en el laboratorio (5 de noviembre de 2026):** el nodo `sre-ro` corre en gx10 como un segundo `axlr-node` (`--node-id sre-ro --labels role=sre-ro --dedicated`), con su propio `mcp.json` que solo nombra `kube-mcp`, y `kube-mcp` usa el token de `axlr-sre-read` ([nodes/sre-ro](../nodes/sre-ro/README.md)). `triage` y `diag-k8s` lo eligen con `placement.selector`. Una consecuencia que el diseño no preveía: **`kubectl diff` no es una lectura para RBAC** (es un dry-run de servidor y pide `patch`), así que `drift` pasa al nodo `sre-rw` y al bot `fix`; `sre-judge` lo deja fuera de su corrida por defecto (`scenarios/drift/needs-write-node`).
 
+**Nodo `sre-rw` (6 de noviembre de 2026):** tercer `axlr-node` en gx10 (`--node-id sre-rw --labels role=sre-rw --dedicated`), con `kube-mcp` en `KUBE_WRITES=true` y el token de `axlr-sre-write` ([nodes/sre-rw](../nodes/sre-rw/README.md)). Decisiones tomadas en autonomía, registradas aquí:
+
+| Decisión | Por qué |
+|---|---|
+| RBAC: lecturas de `axlr-sre-read` en todo el clúster y **solo `patch`** en Deployment, StatefulSet, HPA y ConfigMap | en fase 1 `fix` propone; su única escritura es `diff`, un dry-run de servidor que pide `patch`. `update`, `scale` y `delete` de Pod llegan con las tools de fase 2 que los usen |
+| `patch` por RoleBinding en cada namespace de `SRE_NAMESPACES`, no por ClusterRoleBinding | RBAC acota las escrituras a los mismos namespaces que la política de kube-mcp, diga lo que diga la política; `drift/clear.sh` ya no borra el namespace, que guarda el binding |
+| el manifiesto AXLR del nodo deja pasar las lecturas y `diff`, nada más | kube-mcp publica `apply`, `rollout_*` y `scale` con escrituras; el modelo no los ve. Tres capas: `allowedTools`, `allow_tools` del manifiesto, RBAC |
+| `SRE_NAMESPACES` por defecto `shop,drift-lab` en los dos nodos | triage diagnostica drift desde `sre-ro` comparando el objeto vivo con `desired/` |
+| `PATH` explícito en el `mcp.json` | AXLR arranca el servidor MCP con el entorno exacto del `mcp.json`; sin `PATH`, `kubectl diff` no encuentra el programa `diff` |
+
 ### 7.3 Cloud: AWS primero, estrecho (Q5)
 
 | Rol IAM | Para | Permisos |
@@ -378,7 +388,9 @@ Alertmanager real en el kind (kube-prometheus-stack) mandando a `POST /v1/trigge
 | **2** actuar con aprobación | runbooks como skills firmadas; `fix` en `act-with-approval`; Slack; `diag-cloud` con rol de lectura en AWS | 10/10 escenarios arreglados con una aprobación; móvil probado |
 | **3** actuar solo | autonomía progresiva por runbook; quién aprueba y dos personas en prod; postmortem; KMP; CloudWatch; rol de remediación en AWS | un runbook llega a `act-within-policy` solo por historial; un postmortem aprobado por una persona |
 
-**Estado de la fase 1 (5 de noviembre de 2026):** hechos la tool `kube` (`tools/kube/`), el nodo `sre-ro` con `axlr-sre-read` ([nodes/sre-ro](../nodes/sre-ro/README.md)) y la pantalla Incidentes (axlr-bots #101). `triage` y `diag-k8s` corren en `sre-ro` solo con `kube-mcp`: 8/9 correctas en dos corridas completas, 0 duplicados ([README](../README.md#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). `drift` pasa a `sre-rw`. Meta del nodo de lectura, decidida el 5 de noviembre: los 9 escenarios disparan, al menos 8 correctas, 0 duplicados, menos de 1 $ (`ReadNode` en `judge/domain/goals.go`); las dos corridas la cumplen. Faltan el nodo `sre-rw` y `fix` en `propose`.
+**Estado de la fase 1 (5 de noviembre de 2026):** hechos la tool `kube` (`tools/kube/`), el nodo `sre-ro` con `axlr-sre-read` ([nodes/sre-ro](../nodes/sre-ro/README.md)) y la pantalla Incidentes (axlr-bots #101). `triage` y `diag-k8s` corren en `sre-ro` solo con `kube-mcp`: 8/9 correctas en dos corridas completas, 0 duplicados ([README](../README.md#judged-runs-5-november-2026-on-the-read-only-node-phase-1)). `drift` pasa a `sre-rw`. Meta del nodo de lectura, decidida el 5 de noviembre: los 9 escenarios disparan, al menos 8 correctas, 0 duplicados, menos de 1 $ (`ReadNode` en `judge/domain/goals.go`); las dos corridas la cumplen.
+
+**6 de noviembre:** el nodo `sre-rw` y `fix` en `propose` (§7.2): `fix` corre `diff` de `desired/` en el servidor, anota los valores vivos y propone `apply` con su plan de rollback; no aplica nada. El control plane aún no lanza la fase `fix` ni conoce `Proposed` (§4): hasta que lo haga, `sre-judge` hace de control plane en los escenarios de `sre-rw`: espera `Diagnosed`, envía a `fix` una tarea con el diagnóstico de triage y Jev juzga la propuesta (`WriteNode` en `goals.go`: drift dispara y la propuesta dice todos sus hechos, diff y rollback incluidos). Falta: la fase `fix` en axlr-bots (`Diagnosed → Proposed`, la propuesta en el incidente y en el panel) y los diffs del resto de escenarios.
 
 ### 12.1 Fase 0 en detalle
 

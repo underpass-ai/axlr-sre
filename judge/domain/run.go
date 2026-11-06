@@ -2,7 +2,7 @@ package domain
 
 import "sort"
 
-// Run is every scenario's result and the totals phase 0 is judged by.
+// Run is every scenario's result and the totals a node's goals judge.
 type Run struct {
 	Results []Result
 }
@@ -66,4 +66,41 @@ func (r Run) count(keep func(Result) bool) int {
 		}
 	}
 	return n
+}
+
+// NodeRun is the part of a run one node's goals judge.
+type NodeRun struct {
+	Goals Goals
+	Run   Run
+}
+
+// ByNode splits the run: the read node's scenarios against ReadNode, the
+// write node's against WriteNode; a part without scenarios is left out.
+func (r Run) ByNode() []NodeRun {
+	var read, write []Result
+	for _, x := range r.Results {
+		if x.WriteNode {
+			write = append(write, x)
+		} else {
+			read = append(read, x)
+		}
+	}
+	var parts []NodeRun
+	if len(read) > 0 {
+		parts = append(parts, NodeRun{Goals: ReadNode, Run: NewRun(read)})
+	}
+	if len(write) > 0 {
+		parts = append(parts, NodeRun{Goals: WriteNode, Run: NewRun(write)})
+	}
+	return parts
+}
+
+// PassesByNode reports whether every node's part clears its goals.
+func (r Run) PassesByNode() bool {
+	for _, part := range r.ByNode() {
+		if !part.Run.Passes(part.Goals) {
+			return false
+		}
+	}
+	return true
 }

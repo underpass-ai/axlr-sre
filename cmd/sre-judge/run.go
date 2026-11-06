@@ -13,7 +13,6 @@ import (
 	"github.com/underpass-ai/axlr-sre/judge/adapters/results"
 	"github.com/underpass-ai/axlr-sre/judge/adapters/shell"
 	"github.com/underpass-ai/axlr-sre/judge/application"
-	"github.com/underpass-ai/axlr-sre/judge/domain"
 )
 
 // lastScenario is run last: it stops a worker's kubelet, and the faults
@@ -25,12 +24,14 @@ func runCommand(ctx context.Context, args []string) error {
 	var c common
 	c.bind(flags)
 	scenariosDir := flags.String("scenarios", "scenarios", "the scenarios directory")
-	only := flags.String("only", "", "comma-separated scenarios to run; default every one the read node can diagnose, node-notready last")
+	only := flags.String("only", "", "comma-separated scenarios to run; default every one the read node can diagnose, node-notready last; a write-node scenario (drift) only when named")
 	kubeContext := flags.String("context", "kind-sre-lab", "the kubectl context")
 	tenant := flags.String("tenant", "ops", "the bots' tenant")
 	bot := flags.String("bot", "triage", "the bot whose timeline holds the incident events")
 	timeout := flags.Duration("timeout", 15*time.Minute, "how long an incident may stay Open")
 	poll := flags.Duration("poll", 5*time.Second, "how often the incidents are read")
+	fixBot := flags.String("fix-bot", "fix", "the bot that proposes the fix of a write-node scenario")
+	fixTimeout := flags.Duration("fix-timeout", 10*time.Minute, "how long the fix task may take")
 	soak := flags.String("soak", "", "a scenario left firing after its diagnosis, to count the resends")
 	soakFor := flags.Duration("soak-for", 0, "how long the soaked scenario stays firing after its diagnosis")
 	if err := flags.Parse(args); err != nil {
@@ -54,6 +55,7 @@ func runCommand(ctx context.Context, args []string) error {
 		Lab: lab, ControlPlane: cp, Clock: clock,
 		Score:    application.ScoreDiagnosis{Judge: judge},
 		Cost:     application.IncidentCost{ControlPlane: cp},
+		Propose:  application.ProposeFix{ControlPlane: cp, Clock: clock, Bot: *fixBot, Timeout: *fixTimeout, Poll: *poll},
 		Settings: application.Settings{Tenant: *tenant, Bot: *bot, Timeout: *timeout, Poll: *poll, EventLimit: 1000},
 	}
 	store := results.Store{Dir: c.out}
@@ -70,9 +72,9 @@ func runCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Print("\n" + markdown.Render(run, domain.ReadNode))
-	if !run.Passes(domain.ReadNode) {
-		return errors.New("the run does not clear the read node's goals")
+	fmt.Print("\n" + markdown.RenderByNode(run))
+	if !run.PassesByNode() {
+		return errors.New("the run does not clear its nodes' goals")
 	}
 	return nil
 }

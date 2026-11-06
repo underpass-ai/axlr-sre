@@ -1,0 +1,48 @@
+# The identity of the write node sre-rw (design §7.2), as phase 1 needs it:
+# the reads of axlr-sre-read across the cluster, and patch on the four kinds
+# §7.2 lets fix change, only in the namespaces of the allowlist.
+#
+# Decided on 6 November 2026: phase 1's fix proposes and applies nothing, and
+# its one cluster write is kube-mcp's diff, a server-side dry run that needs
+# patch. So the role has patch and nothing else: update, scale and delete of
+# Pods come with the tools of phase 2 that use them. The ClusterRole is bound
+# per namespace by install.sh (a RoleBinding in each namespace of
+# SRE_NAMESPACES), so RBAC narrows the writes to the same namespaces as
+# kube-mcp's policy, whatever that policy says. Never Secret, Namespace, PVC,
+# CRD, Node, RBAC.
+#
+# Apply ../sre-ro/rbac.yaml first: it holds the namespace axlr-sre and the
+# ClusterRole axlr-sre-read this file binds.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: axlr-sre-write
+  namespace: axlr-sre
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: axlr-sre-write-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: axlr-sre-read
+subjects:
+  - kind: ServiceAccount
+    name: axlr-sre-write
+    namespace: axlr-sre
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: axlr-sre-write
+rules:
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets]
+    verbs: [patch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [patch]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [patch]

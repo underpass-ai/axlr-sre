@@ -64,6 +64,34 @@ type fakeControlPlane struct {
 	tasks      map[string]domain.Task
 	executions map[string][]domain.Execution
 	fail       map[string]error
+	// submitted records each task asked for; onSubmit answers its id.
+	submitted []submission
+	onSubmit  func(submission) string
+}
+
+type submission struct{ bot, objective, key string }
+
+func (cp *fakeControlPlane) SubmitTask(_ context.Context, bot, objective, key string) (string, error) {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	if err := cp.fail["submit"]; err != nil {
+		return "", err
+	}
+	s := submission{bot: bot, objective: objective, key: key}
+	cp.submitted = append(cp.submitted, s)
+	if cp.onSubmit != nil {
+		return cp.onSubmit(s), nil
+	}
+	return "task-fix", nil
+}
+
+func (cp *fakeControlPlane) setTask(task domain.Task) {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	if cp.tasks == nil {
+		cp.tasks = map[string]domain.Task{}
+	}
+	cp.tasks[task.ID] = task
 }
 
 func (cp *fakeControlPlane) Incidents(context.Context, string) ([]domain.Incident, error) {
@@ -93,6 +121,8 @@ func (cp *fakeControlPlane) Task(_ context.Context, id string) (domain.Task, err
 	if err := cp.fail["task"]; err != nil {
 		return domain.Task{}, err
 	}
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
 	task, ok := cp.tasks[id]
 	if !ok {
 		return domain.Task{}, errors.New("no task " + id)
@@ -130,7 +160,11 @@ type fakeLab struct {
 	clearErr error
 	injErr   error
 	onInject func(string)
+	// writeNode names the scenarios only the write node handles.
+	writeNode map[string]bool
 }
+
+func (l *fakeLab) NeedsWriteNode(scenario string) bool { return l.writeNode[scenario] }
 
 func (l *fakeLab) Scenarios() ([]string, error) {
 	var names []string
@@ -168,4 +202,9 @@ func groupKey(alert string) string {
 func oomExpected() domain.Expected {
 	return domain.Expected{Scenario: "oom", Alert: "LabPodOOMKilled", Facts: []domain.Fact{
 		{Name: "object", Value: "Deployment `cart`"}, {Name: "limit", Value: "32Mi"}, {Name: "fix (not applied)", Value: "raise it"}}}
+}
+
+func driftExpected() domain.Expected {
+	return domain.Expected{Scenario: "drift", Alert: "LabDeploymentDrift", Facts: []domain.Fact{
+		{Name: "object", Value: "Deployment `web`"}, {Name: "evidence", Value: "differences: true"}, {Name: "rollback", Value: "3 replicas"}}}
 }

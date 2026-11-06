@@ -21,13 +21,15 @@ type Settings struct {
 }
 
 // JudgeScenario injects one scenario, waits for its incident to leave
-// Open, judges the diagnosis and clears the fault.
+// Open, judges the diagnosis (or, for a write-node scenario, the fix bot's
+// proposal) and clears the fault.
 type JudgeScenario struct {
 	Lab          Lab
 	ControlPlane ControlPlane
 	Clock        Clock
 	Score        ScoreDiagnosis
 	Cost         IncidentCost
+	Propose      ProposeFix
 	Settings     Settings
 }
 
@@ -38,7 +40,7 @@ var ErrTimeout = errors.New("the incident did not leave Open in time")
 // (the soak scenario), unless it never settled; the result's Error
 // carries what went wrong, and the fault is cleared then.
 func (uc JudgeScenario) Run(ctx context.Context, scenario string, keep bool) (domain.Result, error) {
-	result := domain.Result{Scenario: scenario}
+	result := domain.Result{Scenario: scenario, WriteNode: uc.Lab.NeedsWriteNode(scenario)}
 	expected, err := uc.Lab.Expected(scenario)
 	if err != nil {
 		return result, err
@@ -145,13 +147,27 @@ func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, i
 		return err
 	}
 	result.CostUSD = cost
-	if incident.Status == domain.IncidentDiagnosed {
-		score, err := uc.Score.Score(ctx, expected, incident.Diagnosis)
-		if err != nil {
-			return err
-		}
-		result.Score = score
+	if incident.Status != domain.IncidentDiagnosed {
+		return nil
 	}
+	judged := incident.Diagnosis
+	if result.WriteNode {
+		proposal, err := uc.Propose.Run(ctx, incident)
+		result.Proposal = &proposal
+		result.CostUSD += proposal.CostUSD
+		if err != nil {
+			return fmt.Errorf("fix: %w", err)
+		}
+		if !proposal.Completed() {
+			return fmt.Errorf("fix task %s ended %s without a proposal", proposal.TaskID, proposal.Status)
+		}
+		judged = proposal.Answer
+	}
+	score, err := uc.Score.Score(ctx, expected, judged)
+	if err != nil {
+		return err
+	}
+	result.Score = score
 	return nil
 }
 

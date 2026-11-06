@@ -49,6 +49,17 @@ Report: current replicas equal to maxReplicas, the CPU utilisation against the t
 and the source of the load by name: the Deployment whose pod has the client IP, and its command.
 FIX: raise maxReplicas or the CPU request within bounds, or stop the load if it is not legitimate.
 
+## Drift: the live object differs from desired/
+
+    local_list {path: desired}                                            -> the desired manifests
+    local_read {path: desired/<file>}                                      -> the desired fields
+    get {kind: deployment, name: <name>, namespace: <ns>, raw: true}        -> the live fields
+
+Compare them field by field: replicas, each container's image, resources. Report each field that
+differs with its live and its desired value. `diff` is not a tool here: it is a server-side dry run
+that this node may not run; the `fix` bot on the write node runs it.
+FIX (not applied): apply `desired/<file>`; `fix` proposes it with its diff and rollback.
+
 ## The report is the last message
 
 Only the last message of a run reaches the operator. Every message that is not a tool call is the
