@@ -63,26 +63,24 @@ func (i Incident) Alert() string {
 // Settled reports whether the current cycle has left Open.
 func (i Incident) Settled() bool { return i.Status != IncidentOpen }
 
-// CurrentTask is the triage task of the current cycle: the last triage
-// task, or the last task from a control plane that names no phases.
-func (i Incident) CurrentTask() string {
-	if len(i.Tasks) > 0 {
-		return i.phaseTask(PhaseTriage, false)
+// CostSince is what the incident cost after earlier, the same incident
+// read before. axlr-bots adds every execution of the incident's tasks and
+// of the children they delegated to costUsd and never resets it, so a
+// reopened incident still carries its earlier cycles. A read of another
+// incident, or none (a new one), leaves the whole cost.
+func (i Incident) CostSince(earlier Incident) float64 {
+	if earlier.ID != i.ID {
+		return i.CostUSD
 	}
-	if len(i.TaskIDs) == 0 {
-		return ""
-	}
-	return i.TaskIDs[len(i.TaskIDs)-1]
+	return i.CostUSD - earlier.CostUSD
 }
 
 // FixTask is the fix task the control plane launched in the current
 // cycle, or empty while it has not.
-func (i Incident) FixTask() string { return i.phaseTask(PhaseFix, true) }
-
-func (i Incident) phaseTask(phase string, thisCycle bool) string {
+func (i Incident) FixTask() string {
 	for n := len(i.Tasks) - 1; n >= 0; n-- {
 		task := i.Tasks[n]
-		if task.Phase == phase && (!thisCycle || task.Cycle == i.Cycle) {
+		if task.Phase == PhaseFix && task.Cycle == i.Cycle {
 			return task.TaskID
 		}
 	}

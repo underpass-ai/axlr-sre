@@ -28,7 +28,6 @@ type JudgeScenario struct {
 	ControlPlane ControlPlane
 	Clock        Clock
 	Score        ScoreDiagnosis
-	Cost         IncidentCost
 	Propose      AwaitProposal
 	Settings     Settings
 }
@@ -46,7 +45,7 @@ func (uc JudgeScenario) Run(ctx context.Context, scenario string, keep bool) (do
 		return result, err
 	}
 	result.Alert = expected.Alert
-	before, err := uc.cycles(ctx, expected.Alert)
+	before, err := uc.snapshot(ctx, expected.Alert)
 	if err != nil {
 		return result, err
 	}
@@ -57,7 +56,7 @@ func (uc JudgeScenario) Run(ctx context.Context, scenario string, keep bool) (do
 	incident, err := uc.await(ctx, expected.Alert, before, &result)
 	if err != nil {
 		result.Error = err.Error()
-	} else if err := uc.measure(ctx, expected, incident, &result); err != nil {
+	} else if err := uc.measure(ctx, expected, incident, before[incident.ID], &result); err != nil {
 		result.Error = err.Error()
 	}
 	if !keep || result.Error != "" {
@@ -87,23 +86,24 @@ func (uc JudgeScenario) Finish(ctx context.Context, result domain.Result) (domai
 	return result, nil
 }
 
-// cycles maps the alert's incidents to their cycle before the injection,
-// so a reopening (same id, next cycle) counts as this scenario's.
-func (uc JudgeScenario) cycles(ctx context.Context, alert string) (map[string]int, error) {
+// snapshot maps the alert's incidents by id as they stood before the
+// injection, so a reopening (same id, next cycle) counts as this
+// scenario's and only the cost it adds is this scenario's.
+func (uc JudgeScenario) snapshot(ctx context.Context, alert string) (map[string]domain.Incident, error) {
 	incidents, err := uc.ControlPlane.Incidents(ctx, uc.Settings.Tenant)
 	if err != nil {
 		return nil, err
 	}
-	before := map[string]int{}
+	before := map[string]domain.Incident{}
 	for _, incident := range incidents {
 		if incident.IsFor(alert) {
-			before[incident.ID] = incident.Cycle
+			before[incident.ID] = incident
 		}
 	}
 	return before, nil
 }
 
-func (uc JudgeScenario) await(ctx context.Context, alert string, before map[string]int, result *domain.Result) (domain.Incident, error) {
+func (uc JudgeScenario) await(ctx context.Context, alert string, before map[string]domain.Incident, result *domain.Result) (domain.Incident, error) {
 	deadline := result.InjectedAt.Add(uc.Settings.Timeout)
 	for {
 		incidents, err := uc.ControlPlane.Incidents(ctx, uc.Settings.Tenant)
@@ -128,12 +128,16 @@ func (uc JudgeScenario) await(ctx context.Context, alert string, before map[stri
 	}
 }
 
-func isNew(incident domain.Incident, before map[string]int) bool {
-	cycle, seen := before[incident.ID]
-	return !seen || incident.Cycle > cycle
+func isNew(incident domain.Incident, before map[string]domain.Incident) bool {
+	earlier, seen := before[incident.ID]
+	return !seen || incident.Cycle > earlier.Cycle
 }
 
-func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, incident domain.Incident, result *domain.Result) error {
+// measure reads the settled incident; earlier is the same incident before
+// the injection, or none. A task of an earlier cycle that still ran
+// would land in this cycle's cost; the scenarios run one at a time and
+// each waits for its incident to settle, so none does.
+func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, incident, earlier domain.Incident, result *domain.Result) error {
 	result.IncidentID = incident.ID
 	result.Cycle = incident.Cycle
 	result.Status = incident.Status
@@ -142,9 +146,7 @@ func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, i
 	if err := uc.count(ctx, expected.Alert, incident, result); err != nil {
 		return err
 	}
-	if err := uc.cost(ctx, incident, result); err != nil {
-		return err
-	}
+	result.CostUSD = incident.CostSince(earlier)
 	if !domain.HasDiagnosis(incident.Status) {
 		return nil
 	}
@@ -152,9 +154,9 @@ func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, i
 	if result.WriteNode {
 		proposal, final, err := uc.Propose.Run(ctx, incident)
 		result.Proposal, result.Status = &proposal, final.Status
-		// The incident's cost now holds the fix task's too.
-		if costErr := uc.cost(ctx, final, result); costErr != nil && err == nil {
-			err = costErr
+		if final.ID == incident.ID {
+			// The incident's cost now holds the fix task's too.
+			result.CostUSD = final.CostSince(earlier)
 		}
 		if err != nil {
 			return fmt.Errorf("fix: %w", err)
@@ -169,16 +171,6 @@ func (uc JudgeScenario) measure(ctx context.Context, expected domain.Expected, i
 		return err
 	}
 	result.Score = score
-	return nil
-}
-
-// cost is the incident's cost with its triage task's delegated children.
-func (uc JudgeScenario) cost(ctx context.Context, incident domain.Incident, result *domain.Result) error {
-	cost, err := uc.Cost.Of(ctx, incident)
-	if err != nil {
-		return err
-	}
-	result.CostUSD = cost
 	return nil
 }
 

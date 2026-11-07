@@ -34,11 +34,11 @@ type world struct {
 func newWorld() *world {
 	w := &world{
 		lab:   &fakeLab{expected: map[string]domain.Expected{"oom": oomExpected()}},
-		cp:    &fakeControlPlane{tasks: map[string]domain.Task{"t1": {ID: "t1", Children: []string{"c1"}}, "c1": {ID: "c1"}}, executions: map[string][]domain.Execution{"c1": {{CostUSD: 0.002}}}},
+		cp:    &fakeControlPlane{executions: map[string][]domain.Execution{}},
 		clock: &fakeClock{now: t0},
 		judge: &fakeJudge{},
 	}
-	w.uc = JudgeScenario{Lab: w.lab, ControlPlane: w.cp, Clock: w.clock, Score: ScoreDiagnosis{Judge: w.judge}, Cost: IncidentCost{ControlPlane: w.cp}, Settings: settings()}
+	w.uc = JudgeScenario{Lab: w.lab, ControlPlane: w.cp, Clock: w.clock, Score: ScoreDiagnosis{Judge: w.judge}, Settings: settings()}
 	return w
 }
 
@@ -96,7 +96,7 @@ func TestJudgeScenarioMeasuresADiagnosedIncident(t *testing.T) {
 	if result.OpenToSettled != 6*time.Second || result.InjectToSettled() != 10*time.Second {
 		t.Fatalf("open→settled %s inject→settled %s", result.OpenToSettled, result.InjectToSettled())
 	}
-	if result.CostUSD != 0.007 || result.Duplicates != 0 || len(result.OtherAlerts) != 0 {
+	if result.CostUSD != 0.005 || result.Duplicates != 0 || len(result.OtherAlerts) != 0 {
 		t.Fatalf("cost %v dup %d other %v", result.CostUSD, result.Duplicates, result.OtherAlerts)
 	}
 	if len(w.lab.cleared) != 1 || len(w.judge.asked) != 3 {
@@ -106,7 +106,7 @@ func TestJudgeScenarioMeasuresADiagnosedIncident(t *testing.T) {
 
 func TestJudgeScenarioCountsAReopeningAndTheSideEffects(t *testing.T) {
 	w := newWorld()
-	w.cp.set(domain.Incident{ID: "inc-old", GroupKey: groupKey("LabPodOOMKilled"), Status: domain.IncidentResolved, Cycle: 1, OpenedAt: t0.Add(-time.Hour)})
+	w.cp.set(domain.Incident{ID: "inc-old", GroupKey: groupKey("LabPodOOMKilled"), Status: domain.IncidentResolved, Cycle: 1, CostUSD: 0.003, OpenedAt: t0.Add(-time.Hour)})
 	w.cp.set(domain.Incident{ID: "inc-stale", GroupKey: groupKey("LabPodCrashLooping"), Status: domain.IncidentResolved, OpenedAt: t0.Add(-time.Hour)})
 	w.opens("inc-old", 2, domain.IncidentDiagnosed)
 	w.lab.onInject = func(s string) {
@@ -124,6 +124,10 @@ func TestJudgeScenarioCountsAReopeningAndTheSideEffects(t *testing.T) {
 	}
 	if result.Duplicates != 1 || strings.Join(result.OtherAlerts, ",") != "LabPodCrashLooping" {
 		t.Fatalf("dup %d other %v", result.Duplicates, result.OtherAlerts)
+	}
+	// costUsd reads 0.005 over both cycles; cycle 1 had cost 0.003.
+	if result.CostUSD < 0.00199 || result.CostUSD > 0.00201 {
+		t.Fatalf("the reopening's cost is its cycle's: %v", result.CostUSD)
 	}
 }
 
@@ -204,7 +208,7 @@ func TestJudgeScenarioSurfacesTheLabAndControlPlaneErrors(t *testing.T) {
 	if err != nil || !strings.Contains(result.Error, "no events") || !strings.Contains(result.Error, "clear: nodes not Ready") {
 		t.Fatalf("%v %+v", err, result)
 	}
-	w = newWorld()
+	w = writeWorld("x", domain.IncidentProposed)
 	w.opens("inc-1", 1, domain.IncidentDiagnosed)
 	w.cp.fail = map[string]error{"task": errors.New("no task")}
 	if result, _ := w.uc.Run(context.Background(), "oom", false); !strings.Contains(result.Error, "no task") {

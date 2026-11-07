@@ -145,7 +145,7 @@ The judge's rule is stricter than the goal's wording: a diagnosis is *correct* o
 | Jev missed a stated fact once in 58 questions (node-notready's taint, p 0.63); that `side effect` row is still compound (the taint and the pods) | one *partly* that a person would mark *correct* | kept as Jev scored it, the row not split after the fact; the per-fact tables let a person audit it |
 | The diag-k8s bot strips `spec.selector` before `kubectl diff`, so `diff` exits 2 | drift was diagnosed from the `last-applied` annotation, not from the diff | open: the bot's rules for `diff`, or a `kube` tool that diffs properly |
 | `image-pull` sees the other scenarios' alerts while it is held | its result lists five "other alerts" that are the run's own | expected for a soak that runs after the other scenarios; the judge counts duplicates by group key, so they do not count |
-| `incident.costUsd` still omits children | | the judge sums the children's executions itself (`incident_cost.go`) |
+| `incident.costUsd` still omits children | | the judge sums the children's executions itself (`incident_cost.go`); axlr-bots counted them too from [axlr-bots#93](https://github.com/underpass-ai/axlr-bots/pull/93) on, and the judge then counted them twice ([corrected](#cost-of-the-judged-runs-corrected-6-november-2026)) |
 
 ## Judged run, 1 November 2026, after the bot fixes
 
@@ -218,7 +218,7 @@ Same cluster, model (`anthropic/claude-haiku-5.5`), judge (`jev-1.13.0`) and `ex
 | causes Jev found stated in full (partly) | 8 / 9 (1) | 8 / 9 |
 | duplicate incidents | 0 | 0 |
 | Open → Diagnosed | 26 s–35 s | < 3m0s |
-| cost of the whole run, children included | $0.194 | < $1 |
+| cost of the whole run, children included | $0.194 as recorded; $0.075 [corrected](#cost-of-the-judged-runs-corrected-6-november-2026) | < $1 |
 | cost of judging (Jev) | $0.0023 | |
 | passes | true | |
 
@@ -262,7 +262,9 @@ hpa-maxed's child stopped at its 12 tool calls with no report (`budget exceeded:
 
 ### Cost
 
-$0.119 for run 1 and $0.194 for run 2, against $0.093 for phase 0's ten: about $0.022 an incident, from $0.009. Run 2's 64-call budget let every run read more, and every read is now a model turn through `axlr_call_tool`. Still far under the $1 a run of phase 0's goal.
+$0.077 for run 1 and $0.075 for run 2, against $0.093 for phase 0's ten: about $0.008 an incident, from $0.009. Reading through kube-mcp and the 64-call budget did not make an incident dearer. Still far under the $1 a run of phase 0's goal.
+
+The tables above keep the costs the judge recorded, $0.119 and $0.194 for the runs: they counted the delegated children twice and, in run 2, every incident's run-1 cycle too. The first version of this paragraph read them as $0.022 an incident and blamed the budget; [the correction](#cost-of-the-judged-runs-corrected-6-november-2026) has the figures per scenario.
 
 ### What did not fit
 
@@ -286,7 +288,7 @@ What changed: a third node, [sre-rw](nodes/sre-rw/README.md), runs [fix](bots/fi
 | proposals Jev found stated in full (partly) | 1 / 1 (0) | 1 / 1 |
 | duplicate incidents | 0 | 0 |
 | Open → Diagnosed | 29 s | < 3m0s |
-| cost, children and fix included | $0.031 | < $1 |
+| cost, children and fix included | $0.031 as recorded; $0.011 [corrected](#cost-of-the-judged-runs-corrected-6-november-2026) | < $1 |
 | passes | true | |
 
 | Fact | Expected | Jev | p |
@@ -314,6 +316,33 @@ What changed: a third node, [sre-rw](nodes/sre-rw/README.md), runs [fix](bots/fi
 | kube-mcp's `diff` refuses a `Namespace` in the manifest | the 29 October desired state, which starts with one, cannot be diffed | the scenario carries the Deployment alone, and its namespace stays across runs with sre-rw's RoleBinding |
 | the drift example moved from axlr-bots to the private axlr-bots-examples | `inject.sh` read a path that no longer exists | `scenarios/drift/desired/` |
 | the proposal is the judge's to launch | no `Proposed` state, no proposal in the incident or the panel | the fix phase belongs to axlr-bots (design §4) |
+
+## Cost of the judged runs, corrected 6 November 2026
+
+The judge's cost (1 November, 01:12 CET) added the triage task's delegated children to the incident's `costUsd`, because axlr-bots then counted only triage's own executions. [axlr-bots#93](https://github.com/underpass-ai/axlr-bots/pull/93) (1 November, 13:29 CET) made axlr-bots count the children itself, and `costUsd` is never reset when an incident reopens: it is every cycle's. From then on the judge counted the children twice, and a reopened incident carried its earlier cycles. The judge now reports the incident's `costUsd` past what it was before the injection: this cycle's, children and fix included, counted once by the control plane.
+
+| Run | Recorded | Corrected | What inflated it |
+|---|---|---|---|
+| 31 October (summed by hand), 1 November, both runs | $0.075, $0.071, $0.093 | the same | nothing: `costUsd` was triage's own then, so adding the children was right |
+| 5 November, run 1 | $0.119 | $0.077 | the children twice; crashloop also carried its first cycle ($0.007) |
+| 5 November, run 2 | $0.194 | $0.075 | the children twice and every incident's run-1 cycle: about 2.6 times |
+| 6 November, drift, run 2 | $0.031 | $0.011 (triage $0.008, fix $0.003) | the children twice and cycles 1 and 2: about 2.8 times |
+
+Per scenario on 5 November:
+
+| Scenario | Run 1 recorded | Run 1 corrected | Run 2 recorded | Run 2 corrected |
+|---|---|---|---|---|
+| cert-expiry | $0.0137 | $0.0088 | $0.0224 | $0.0091 |
+| crashloop | $0.0166 | $0.0064 | $0.0237 | $0.0067 |
+| hpa-maxed | $0.0186 | $0.0131 | $0.0238 | $0.0072 |
+| image-pull | $0.0119 | $0.0081 | $0.0196 | $0.0081 |
+| missing-secret | $0.0097 | $0.0071 | $0.0216 | $0.0092 |
+| netpol | $0.0123 | $0.0083 | $0.0206 | $0.0085 |
+| node-notready | $0.0152 | $0.0100 | $0.0229 | $0.0087 |
+| oom | $0.0109 | $0.0075 | $0.0198 | $0.0088 |
+| pvc-full | $0.0102 | $0.0071 | $0.0197 | $0.0086 |
+
+The corrected figures are recomputed on gx10's control plane from each cycle's triage task and its children (`axlr-bots task executions`), plus `fix`'s task for drift. The other way round, `costUsd` at the time plus the cycle's children gives back every recorded cost in [judge/results/](judge/results/) exactly. Those files keep the `CostUSD` the judge recorded.
 
 ## License
 

@@ -53,7 +53,6 @@ func runCommand(ctx context.Context, args []string) error {
 	scenario := application.JudgeScenario{
 		Lab: lab, ControlPlane: cp, Clock: clock,
 		Score:    application.ScoreDiagnosis{Judge: judge},
-		Cost:     application.IncidentCost{ControlPlane: cp},
 		Propose:  application.AwaitProposal{ControlPlane: cp, Clock: clock, Timeout: *fixTimeout, Poll: *poll},
 		Settings: application.Settings{Tenant: *tenant, Bot: *bot, Timeout: *timeout, Poll: *poll, EventLimit: 1000},
 	}

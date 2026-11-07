@@ -125,14 +125,13 @@ func (c *Client) Task(ctx context.Context, id string) (domain.Task, error) {
 	var wire struct {
 		ID           string    `json:"id"`
 		Status       string    `json:"status"`
-		Children     []string  `json:"children"`
 		ExecutionIDs []string  `json:"executionIds"`
 		CreatedAt    time.Time `json:"createdAt"`
 	}
 	if err := c.get(ctx, "/v1/tasks/"+url.PathEscape(id), &wire); err != nil {
 		return domain.Task{}, err
 	}
-	return domain.Task{ID: wire.ID, Status: wire.Status, Children: wire.Children, ExecutionIDs: wire.ExecutionIDs, CreatedAt: wire.CreatedAt}, nil
+	return domain.Task{ID: wire.ID, Status: wire.Status, ExecutionIDs: wire.ExecutionIDs, CreatedAt: wire.CreatedAt}, nil
 }
 
 // Executions reads a task's executions with what each cost and answered.

@@ -56,8 +56,8 @@ func TestClientReadsTheOperatorAPI(t *testing.T) {
 				t.Fatal(incidents[0].OpenedAt)
 			}
 			incident, err := client.Incident(ctx, "inc-1")
-			if err != nil || incident.Diagnosis != "CAUSE: x" || incident.Proposal != "PROPOSAL: apply" || incident.FixTask() != "t2" || incident.CurrentTask() != "t1" ||
-				incident.Tasks[1].BotID != "fix" {
+			if err != nil || incident.Diagnosis != "CAUSE: x" || incident.Proposal != "PROPOSAL: apply" || incident.FixTask() != "t2" ||
+				incident.Tasks[0].Phase != "triage" || incident.Tasks[1].BotID != "fix" {
 				t.Fatalf("%+v %v", incident, err)
 			}
 			if _, err := client.Incident(ctx, "inc-2"); err == nil || !strings.Contains(err.Error(), "404") {
@@ -68,7 +68,7 @@ func TestClientReadsTheOperatorAPI(t *testing.T) {
 				t.Fatalf("only incident events: %+v %v", events, err)
 			}
 			task, err := client.Task(ctx, "t1")
-			if err != nil || task.Status != "Completed" || task.Children[0] != "c1" || task.ExecutionIDs[0] != "e1" || !task.CreatedAt.Equal(time.Date(2026, 11, 1, 10, 0, 2, 0, time.UTC)) {
+			if err != nil || task.Status != "Completed" || task.ExecutionIDs[0] != "e1" || !task.CreatedAt.Equal(time.Date(2026, 11, 1, 10, 0, 2, 0, time.UTC)) {
 				t.Fatalf("%+v %v", task, err)
 			}
 			executions, err := client.Executions(ctx, "t1")
